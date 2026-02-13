@@ -1,0 +1,36 @@
+services:
+  nextjs:
+    container_name: nextjs-app
+    build:
+      context: ./twhp
+      dockerfile: Dockerfile
+    env_file:
+      - ./twhp/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - twhp-shared   # 👈 สำคัญ
+
+  nginx:
+    container_name: nginx-ssl
+    image: nginx:alpine
+    depends_on:
+      - nextjs
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    restart: unless-stopped
+    networks:
+      - twhp-shared   # 👈 สำคัญ
+
+networks:
+  twhp-shared:
+    external: true
