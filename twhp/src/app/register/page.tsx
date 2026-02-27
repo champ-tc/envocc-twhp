@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, ChevronLeft } from "lucide-react"; // เพิ่ม icon
+import { ShieldCheck, ChevronLeft } from "lucide-react";
 import Image from "next/image";
 import PDPAModal from "@/components/PDPAModal";
 
@@ -59,16 +59,8 @@ function passwordChecks(pw: string) {
       ok: pw.length >= 12 && pw.length <= 20,
     },
     { key: "noThai", label: "ห้ามมีภาษาไทย", ok: !hasThaiChars(pw) },
-    {
-      key: "upper",
-      label: "มีตัวพิมพ์ใหญ่ (A-Z)",
-      ok: /[A-Z]/.test(pw),
-    },
-    {
-      key: "lower",
-      label: "มีตัวพิมพ์เล็ก (a-z)",
-      ok: /[a-z]/.test(pw),
-    },
+    { key: "upper", label: "มีตัวพิมพ์ใหญ่ (A-Z)", ok: /[A-Z]/.test(pw) },
+    { key: "lower", label: "มีตัวพิมพ์เล็ก (a-z)", ok: /[a-z]/.test(pw) },
     { key: "digit", label: "มีตัวเลข (0-9)", ok: /[0-9]/.test(pw) },
     {
       key: "spec",
@@ -82,15 +74,60 @@ function passwordChecks(pw: string) {
 
 function stripThaiOnInput(e: React.FormEvent<HTMLInputElement>) {
   const el = e.currentTarget;
-  if (hasThaiChars(el.value))
-    el.value = el.value.replace(/[\u0E00-\u0E7F]/g, "");
+  if (hasThaiChars(el.value)) el.value = el.value.replace(/[\u0E00-\u0E7F]/g, "");
+}
+
+function normalizeApiMessage(msg: unknown): string {
+  if (Array.isArray(msg)) return msg.map(String).join(" ");
+  if (typeof msg === "string") return msg;
+  if (msg && typeof msg === "object") return JSON.stringify(msg);
+  return "";
+}
+
+function classifyRegisterError(message: string) {
+  const m = (message || "").toLowerCase();
+
+  // ✅ email ซ้ำ
+  if (
+    (m.includes("unique constraint failed") && m.includes("email")) ||
+    m.includes("email already") ||
+    m.includes("email exists")
+  ) {
+    return { field: "email" as const, uiMessage: "มีข้อมูลผู้ใช้อีเมลนี้ในระบบแล้ว" };
+  }
+
+  // ✅ username ซ้ำ (ปรับ keyword ตามระบบคุณ)
+  if (
+    (m.includes("unique constraint failed") && (m.includes("username") || m.includes("user_name"))) ||
+    m.includes("username already") ||
+    m.includes("username exists") ||
+    m.includes("factory already exists") // ถ้า backend ใช้คำนี้แทน "username ซ้ำ"
+  ) {
+    return { field: "username" as const, uiMessage: "มีข้อมูลผู้ใช้ชื่อนี้ในระบบแล้ว" };
+  }
+
+  return { field: null, uiMessage: "" };
+}
+
+function isDuplicateEmailOrExists(msg: string): boolean {
+  const m = (msg || "").toLowerCase();
+  const emailDup =
+    (m.includes("unique constraint failed") && m.includes("email")) ||
+    m.includes("email already") ||
+    m.includes("email exists") ||
+    m.includes("duplicate") && m.includes("email");
+  const factoryExists =
+    m.includes("factory already exists") ||
+    m.includes("already exists") ||
+    m.includes("already registered");
+  return emailDup || factoryExists;
 }
 
 export default function RegisterPage() {
   const router = useRouter();
 
   // --- PDPA State ---
-  const [showPdpa, setShowPdpa] = useState(true); // เริ่มต้นมาแสดงทันที
+  const [showPdpa, setShowPdpa] = useState(true);
 
   const [form, setForm] = useState<FormState>({
     username: "",
@@ -166,9 +203,7 @@ export default function RegisterPage() {
     (async () => {
       setLoadingLoc(true);
       try {
-        const res = await fetch("/api/locations/provinces", {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/locations/provinces", { cache: "no-store" });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as ProvinceApi[];
         setProvinces(Array.isArray(data) ? data : []);
@@ -196,10 +231,9 @@ export default function RegisterPage() {
       }
       setLoadingLoc(true);
       try {
-        const res = await fetch(
-          `/api/locations/province/${form.province_id}/districts`,
-          { cache: "no-store" },
-        );
+        const res = await fetch(`/api/locations/province/${form.province_id}/districts`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as DistrictApi[];
         setDistricts(Array.isArray(data) ? data : []);
@@ -229,10 +263,9 @@ export default function RegisterPage() {
       }
       setLoadingLoc(true);
       try {
-        const res = await fetch(
-          `/api/locations/district/${form.district_id}/subdistricts`,
-          { cache: "no-store" },
-        );
+        const res = await fetch(`/api/locations/district/${form.district_id}/subdistricts`, {
+          cache: "no-store",
+        });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as SubdistrictApi[];
         setSubdistricts(Array.isArray(data) ? data : []);
@@ -248,18 +281,14 @@ export default function RegisterPage() {
 
   function validate(): boolean {
     const e: Record<string, string> = {};
-    const orgLabel =
-      form.factory_type === 1 ? "วิสาหกิจชุมชน" : "สถานประกอบการ";
+    const orgLabel = form.factory_type === 1 ? "วิสาหกิจชุมชน" : "สถานประกอบการ";
 
     const u = form.username.trim();
     if (form.factory_type === 0) {
-      // สถานประกอบการ: 5, 13, 14
       if (!/^(\d{5}|\d{13}|\d{14})$/.test(u)) {
-        e.username =
-          "กรุณาระบุเลขทะเบียน 13, 14 หลัก หรือรหัสหน่วยบริการ 5 หลัก";
+        e.username = "กรุณาระบุเลขทะเบียน 13, 14 หลัก หรือรหัสหน่วยบริการ 5 หลัก";
       }
     } else {
-      // วิสาหกิจชุมชน: 12
       if (!/^\d{12}$/.test(u)) {
         e.username = "กรุณาระบุรหัสทะเบียนวิสาหกิจชุมชน 12 หลัก";
       }
@@ -272,18 +301,14 @@ export default function RegisterPage() {
     else if (!pwInfo.allOk) e.password = "รหัสผ่านยังไม่ผ่านเงื่อนไขทั้งหมด";
 
     if (!form.confirmPassword) e.confirmPassword = "กรุณายืนยันรหัสผ่าน";
-    else if (form.confirmPassword.length > 20)
-      e.confirmPassword = "รหัสผ่านห้ามเกิน 20 ตัวอักษร";
-    else if (form.confirmPassword !== form.password)
-      e.confirmPassword = "รหัสผ่านไม่ตรงกัน";
+    else if (form.confirmPassword.length > 20) e.confirmPassword = "รหัสผ่านห้ามเกิน 20 ตัวอักษร";
+    else if (form.confirmPassword !== form.password) e.confirmPassword = "รหัสผ่านไม่ตรงกัน";
 
     if (!form.name_th.trim()) e.name_th = `กรุณากรอกชื่อ${orgLabel}ภาษาไทย`;
-    if (!form.name_en.trim())
-      e.name_en = `กรุณากรอกชื่อ${orgLabel}ภาษาอังกฤษ`;
+    if (!form.name_en.trim()) e.name_en = `กรุณากรอกชื่อ${orgLabel}ภาษาอังกฤษ`;
 
     const tsic = form.tsic_code.trim();
-    if (!/^\d{5}$/.test(tsic))
-      e.tsic_code = "TSIC ต้องเป็นตัวเลข 5 หลักเท่านั้น";
+    if (!/^\d{5}$/.test(tsic)) e.tsic_code = "TSIC ต้องเป็นตัวเลข 5 หลักเท่านั้น";
 
     if (!form.address_no.trim()) e.address_no = "กรุณากรอกที่อยู่";
     if (!form.phone_number.trim()) e.phone_number = "กรุณากรอกเบอร์โทรศัพท์";
@@ -301,6 +326,7 @@ export default function RegisterPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
+
     if (!validate()) return;
 
     setSubmitting(true);
@@ -328,12 +354,34 @@ export default function RegisterPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const apiMsg = normalizeApiMessage(data?.message ?? data?.error ?? "");
+        const detected = classifyRegisterError(apiMsg);
+
+        if (detected.field === "email") {
+          setErrors((prev) => ({ ...prev, email: detected.uiMessage }));
+          setSubmitError(detected.uiMessage);
+          return;
+        }
+
+        if (detected.field === "username") {
+          setErrors((prev) => ({ ...prev, username: detected.uiMessage }));
+          setSubmitError(detected.uiMessage);
+          return;
+        }
+
+        // fallback
+        throw new Error(apiMsg || "ลงทะเบียนไม่สำเร็จ");
+      }
+
       alert("ลงทะเบียนสำเร็จ");
       router.push("/");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "ลงทะเบียนไม่สำเร็จ";
       alert("ลงทะเบียนไม่สำเร็จ");
-      setSubmitError(err instanceof Error ? err.message : "ลงทะเบียนไม่สำเร็จ");
+      setSubmitError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -350,13 +398,8 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      {/* --- PDPA MODAL --- */}
-      <PDPAModal
-        isOpen={showPdpa}
-        onConfirm={() => setShowPdpa(false)}
-      />
+      <PDPAModal isOpen={showPdpa} onConfirm={() => setShowPdpa(false)} />
 
-      {/* --- Main Registration Form --- */}
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
         <div className="w-full md:w-1/3 bg-[#2E8B57] p-4 text-white flex flex-col justify-between">
           <div>
@@ -364,9 +407,7 @@ export default function RegisterPage() {
               <ShieldCheck size={24} />
             </div>
             <h2 className="text-2xl font-bold mb-4">ลงทะเบียนสถานประกอบการ</h2>
-            <p className="text-green-100 leading-relaxed text-sm">
-              ร่วมเป็นส่วนหนึ่งในโครงการ
-            </p>
+            <p className="text-green-100 leading-relaxed text-sm">ร่วมเป็นส่วนหนึ่งในโครงการ</p>
             <p className="text-green-100 leading-relaxed text-sm">
               สถานประกอบการ ปลอดโรค ปลอดภัย กายใจเป็นสุข
             </p>
@@ -382,15 +423,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="w-full md:w-2/3 p-8 md:p-12">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            กรอกข้อมูลสมัครสมาชิก
-          </h2>
-
-          {submitError && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
-              {submitError}
-            </div>
-          )}
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">กรอกข้อมูลสมัครสมาชิก</h2>
 
           <form className="space-y-4" onSubmit={onSubmit}>
             <div>
@@ -421,20 +454,14 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={labelBase}>
-                  ชื่อผู้ใช้
-                </label>
+                <label className={labelBase}>ชื่อผู้ใช้</label>
                 <input
                   className={inputBase}
                   value={form.username}
                   maxLength={14}
-                  onChange={(e) =>
-                    setField("username", onlyDigits(e.target.value))
-                  }
+                  onChange={(e) => setField("username", onlyDigits(e.target.value))}
                 />
-                {errors.username && (
-                  <div className={errorText}>{errors.username}</div>
-                )}
+                {errors.username && <div className={errorText}>{errors.username}</div>}
               </div>
 
               <div>
@@ -445,29 +472,19 @@ export default function RegisterPage() {
                   value={form.email}
                   onChange={(e) => setField("email", e.target.value)}
                 />
-                {errors.email && (
-                  <div className={errorText}>{errors.email}</div>
-                )}
+                {errors.email && <div className={errorText}>{errors.email}</div>}
               </div>
+
               <div className="text-xs text-gray-500 md:col-span-2 space-y-1">
                 {form.factory_type === 0 && (
                   <>
-                    <p>
-                      - สถานประกอบการ ขึ้นทะเบียนกับกรมโรงงานอุตสาหกรรม (DIW)
-                      ระบุเลขทะเบียน 14 หลัก
-                    </p>
-                    <p>
-                      - สถานประกอบการ ขึ้นทะเบียนกับกรมพัฒนาธุรกิจการค้า (DBD)
-                      ระบุเลขทะเบียน 13 หลัก
-                    </p>
+                    <p>- สถานประกอบการ ขึ้นทะเบียนกับกรมโรงงานอุตสาหกรรม (DIW) ระบุเลขทะเบียน 14 หลัก</p>
+                    <p>- สถานประกอบการ ขึ้นทะเบียนกับกรมพัฒนาธุรกิจการค้า (DBD) ระบุเลขทะเบียน 13 หลัก</p>
                     <p>- โรงพยาบาล ระบุรหัสหน่วยบริการ 5 หลัก</p>
                   </>
                 )}
                 {form.factory_type === 1 && (
-                  <p>
-                    - ระบุรหัสทะเบียนวิสาหกิจชุมชน 12 หลัก (โดยไม่ต้องกรอก -
-                    และ /)
-                  </p>
+                  <p>- ระบุรหัสทะเบียนวิสาหกิจชุมชน 12 หลัก (โดยไม่ต้องกรอก - และ /)</p>
                 )}
               </div>
             </div>
@@ -485,11 +502,7 @@ export default function RegisterPage() {
                     onInput={stripThaiOnInput}
                     placeholder="รหัสผ่าน"
                   />
-                  <button
-                    type="button"
-                    className={toggleBtn}
-                    onClick={() => setShowPw((v) => !v)}
-                  >
+                  <button type="button" className={toggleBtn} onClick={() => setShowPw((v) => !v)}>
                     <Image
                       src={showPw ? "/img/hide.png" : "/img/eye.png"}
                       alt="toggle password"
@@ -498,9 +511,7 @@ export default function RegisterPage() {
                     />
                   </button>
                 </div>
-                {errors.password && (
-                  <div className={errorText}>{errors.password}</div>
-                )}
+                {errors.password && <div className={errorText}>{errors.password}</div>}
 
                 <div className="mt-2 space-y-1">
                   {pwInfo.checks.map((c) => (
@@ -522,16 +533,10 @@ export default function RegisterPage() {
                     className={inputBase + " pr-14"}
                     value={form.confirmPassword}
                     maxLength={20}
-                    onChange={(e) =>
-                      setField("confirmPassword", e.target.value)
-                    }
+                    onChange={(e) => setField("confirmPassword", e.target.value)}
                     onInput={stripThaiOnInput}
                   />
-                  <button
-                    type="button"
-                    className={toggleBtn}
-                    onClick={() => setShowPw2((v) => !v)}
-                  >
+                  <button type="button" className={toggleBtn} onClick={() => setShowPw2((v) => !v)}>
                     <Image
                       src={showPw2 ? "/img/hide.png" : "/img/eye.png"}
                       alt="toggle confirm password"
@@ -542,45 +547,29 @@ export default function RegisterPage() {
                 </div>
 
                 {form.confirmPassword.length > 0 && (
-                  <div
-                    className={`mt-2 text-xs ${pwMatchOk ? "text-emerald-700" : "text-red-600"}`}
-                  >
+                  <div className={`mt-2 text-xs ${pwMatchOk ? "text-emerald-700" : "text-red-600"}`}>
                     {pwMatchOk ? "✓ รหัสผ่านตรงกัน" : "✗ รหัสผ่านไม่ตรงกัน"}
                   </div>
                 )}
-                {errors.confirmPassword && (
-                  <div className={errorText}>{errors.confirmPassword}</div>
-                )}
+                {errors.confirmPassword && <div className={errorText}>{errors.confirmPassword}</div>}
               </div>
             </div>
 
             <div>
               <label className={labelBase}>ชื่อ{orgLabel}ภาษาไทย</label>
-              <input
-                className={inputBase}
-                value={form.name_th}
-                onChange={(e) => setField("name_th", e.target.value)}
-              />
-              {errors.name_th && (
-                <div className={errorText}>{errors.name_th}</div>
-              )}
+              <input className={inputBase} value={form.name_th} onChange={(e) => setField("name_th", e.target.value)} />
+              {errors.name_th && <div className={errorText}>{errors.name_th}</div>}
             </div>
 
             <div>
               <label className={labelBase}>ชื่อ{orgLabel}ภาษาอังกฤษ</label>
-              <input
-                className={inputBase}
-                value={form.name_en}
-                onChange={(e) => setField("name_en", e.target.value)}
-              />
-              {errors.name_en && (
-                <div className={errorText}>{errors.name_en}</div>
-              )}
+              <input className={inputBase} value={form.name_en} onChange={(e) => setField("name_en", e.target.value)} />
+              {errors.name_en && <div className={errorText}>{errors.name_en}</div>}
             </div>
 
             <div>
               <label className={labelBase}>
-                รหัสประเภทธุรกิจ (TSIC) 5 หลัก{""}
+                รหัสประเภทธุรกิจ (TSIC) 5 หลัก{" "}
                 <a
                   href="https://tsic.dbd.go.th/index"
                   target="_blank"
@@ -596,44 +585,26 @@ export default function RegisterPage() {
                 value={form.tsic_code}
                 inputMode="numeric"
                 maxLength={5}
-                onChange={(e) =>
-                  setField("tsic_code", onlyDigits(e.target.value))
-                }
+                onChange={(e) => setField("tsic_code", onlyDigits(e.target.value))}
                 placeholder="ตัวเลข 5 หลัก"
               />
-              {errors.tsic_code && (
-                <div className={errorText}>{errors.tsic_code}</div>
-              )}
+              {errors.tsic_code && <div className={errorText}>{errors.tsic_code}</div>}
             </div>
 
             <div>
               <label className={labelBase}>ที่อยู่</label>
-              <input
-                className={inputBase}
-                value={form.address_no}
-                onChange={(e) => setField("address_no", e.target.value)}
-              />
-              {errors.address_no && (
-                <div className={errorText}>{errors.address_no}</div>
-              )}
+              <input className={inputBase} value={form.address_no} onChange={(e) => setField("address_no", e.target.value)} />
+              {errors.address_no && <div className={errorText}>{errors.address_no}</div>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelBase}>ซอย</label>
-                <input
-                  className={inputBase}
-                  value={form.soi}
-                  onChange={(e) => setField("soi", e.target.value)}
-                />
+                <input className={inputBase} value={form.soi} onChange={(e) => setField("soi", e.target.value)} />
               </div>
               <div>
                 <label className={labelBase}>ถนน</label>
-                <input
-                  className={inputBase}
-                  value={form.road}
-                  onChange={(e) => setField("road", e.target.value)}
-                />
+                <input className={inputBase} value={form.road} onChange={(e) => setField("road", e.target.value)} />
               </div>
             </div>
 
@@ -655,18 +626,14 @@ export default function RegisterPage() {
                   }}
                   disabled={loadingLoc}
                 >
-                  <option value="">
-                    {loadingLoc ? "กำลังโหลด..." : "เลือกจังหวัด"}
-                  </option>
+                  <option value="">{loadingLoc ? "กำลังโหลด..." : "เลือกจังหวัด"}</option>
                   {provinces.map((p) => (
                     <option key={p.province_id} value={p.province_id}>
                       {p.name_th}
                     </option>
                   ))}
                 </select>
-                {errors.province_id && (
-                  <div className={errorText}>{errors.province_id}</div>
-                )}
+                {errors.province_id && <div className={errorText}>{errors.province_id}</div>}
               </div>
 
               <div>
@@ -685,18 +652,14 @@ export default function RegisterPage() {
                   }}
                   disabled={loadingLoc || form.province_id === ""}
                 >
-                  <option value="">
-                    {loadingLoc ? "กำลังโหลด..." : "เลือกอำเภอ"}
-                  </option>
+                  <option value="">{loadingLoc ? "กำลังโหลด..." : "เลือกอำเภอ"}</option>
                   {districts.map((d) => (
                     <option key={d.district_id} value={d.district_id}>
                       {d.name_th}
                     </option>
                   ))}
                 </select>
-                {errors.district_id && (
-                  <div className={errorText}>{errors.district_id}</div>
-                )}
+                {errors.district_id && <div className={errorText}>{errors.district_id}</div>}
               </div>
 
               <div>
@@ -709,59 +672,38 @@ export default function RegisterPage() {
                     setForm((p) => ({
                       ...p,
                       subdistrict_id: v,
-                      zipcode: v !== "" ? (zipMap.get(v) ?? "") : "",
+                      zipcode: v !== "" ? zipMap.get(v) ?? "" : "",
                     }));
                   }}
                   disabled={loadingLoc || form.district_id === ""}
                 >
-                  <option value="">
-                    {loadingLoc ? "กำลังโหลด..." : "เลือกตำบล"}
-                  </option>
+                  <option value="">{loadingLoc ? "กำลังโหลด..." : "เลือกตำบล"}</option>
                   {subdistricts.map((s) => (
                     <option key={s.subdistrict_id} value={s.subdistrict_id}>
                       {s.name_th}
                     </option>
                   ))}
                 </select>
-                {errors.subdistrict_id && (
-                  <div className={errorText}>{errors.subdistrict_id}</div>
-                )}
+                {errors.subdistrict_id && <div className={errorText}>{errors.subdistrict_id}</div>}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className={labelBase}>รหัสไปรษณีย์</label>
-                <input
-                  className={`${inputBase} bg-gray-100 cursor-not-allowed`}
-                  value={form.zipcode}
-                  readOnly
-                  aria-readonly="true"
-                />
-                {errors.zipcode && (
-                  <div className={errorText}>{errors.zipcode}</div>
-                )}
+                <input className={`${inputBase} bg-gray-100 cursor-not-allowed`} value={form.zipcode} readOnly aria-readonly="true" />
+                {errors.zipcode && <div className={errorText}>{errors.zipcode}</div>}
               </div>
 
               <div>
                 <label className={labelBase}>เบอร์โทรศัพท์</label>
-                <input
-                  className={inputBase}
-                  value={form.phone_number}
-                  onChange={(e) => setField("phone_number", e.target.value)}
-                />
-                {errors.phone_number && (
-                  <div className={errorText}>{errors.phone_number}</div>
-                )}
+                <input className={inputBase} value={form.phone_number} onChange={(e) => setField("phone_number", e.target.value)} />
+                {errors.phone_number && <div className={errorText}>{errors.phone_number}</div>}
               </div>
 
               <div>
                 <label className={labelBase}>แฟกซ์</label>
-                <input
-                  className={inputBase}
-                  value={form.fax_number}
-                  onChange={(e) => setField("fax_number", e.target.value)}
-                />
+                <input className={inputBase} value={form.fax_number} onChange={(e) => setField("fax_number", e.target.value)} />
               </div>
             </div>
 

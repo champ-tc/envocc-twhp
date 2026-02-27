@@ -22,10 +22,9 @@ type RegisterBody = {
 function isRegisterBody(v: unknown): v is RegisterBody {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
-  const reqStr = (k: string) =>
-    typeof o[k] === "string" && (o[k] as string).length > 0;
-  const reqNum = (k: string) =>
-    typeof o[k] === "number" && Number.isFinite(o[k] as number);
+  const reqStr = (k: string) => typeof o[k] === "string" && (o[k] as string).trim().length > 0;
+  const reqNum = (k: string) => typeof o[k] === "number" && Number.isFinite(o[k] as number);
+
   return (
     reqStr("username") &&
     reqStr("password") &&
@@ -46,10 +45,7 @@ function isRegisterBody(v: unknown): v is RegisterBody {
 
 export async function POST(req: NextRequest) {
   if (!API_BASE_URL) {
-    return NextResponse.json(
-      { message: "Missing API_BASE_URL" },
-      { status: 500 },
-    );
+    return NextResponse.json({ message: "Missing API_BASE_URL" }, { status: 500 });
   }
 
   let body: unknown;
@@ -63,18 +59,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Invalid body" }, { status: 400 });
   }
 
-  const target = `${API_BASE_URL}/factories/register`; // ✅ /twhp/api/factories/register อยู่ใน API_BASE_URL แล้ว
-  const r = await fetch(target, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const target = `${API_BASE_URL}/factories/register`;
 
-  const text = await r.text();
-  return new NextResponse(text, {
-    status: r.status,
-    headers: {
-      "content-type": r.headers.get("content-type") || "application/json",
-    },
-  });
+  try {
+    const r = await fetch(target, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const text = await r.text();
+    const contentType = r.headers.get("content-type") || "";
+
+    // ✅ ทำให้ response กลับเป็น JSON เสมอ
+    if (contentType.includes("application/json")) {
+      try {
+        const json = JSON.parse(text);
+        return NextResponse.json(json, { status: r.status });
+      } catch {
+        return NextResponse.json({ message: text }, { status: r.status });
+      }
+    }
+
+    return NextResponse.json({ message: text }, { status: r.status });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Upstream fetch failed";
+    return NextResponse.json({ message: msg }, { status: 502 });
+  }
 }
