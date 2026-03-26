@@ -154,6 +154,16 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div className="flex justify-end relative z-10">
+              <button
+                type="button"
+                onClick={() => router.push("/forgetpassword")}
+                className="text-sm text-[#2E8B57] hover:underline font-medium"
+              >
+                ลืมรหัสผ่าน?
+              </button>
+            </div>
+
             {error && (
               <div className="bg-red-50 text-red-600 text-sm py-2 px-4 rounded-lg flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-red-600 rounded-full" />

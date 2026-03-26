@@ -6,17 +6,17 @@ type RegisterBody = {
   username: string;
   password: string;
   email: string;
-  factory_type: number;
-  name_th: string;
-  name_en: string;
-  tsic_code: string;
-  address_no: string;
+  factoryType: number;
+  nameTh: string;
+  nameEn: string;
+  tsicCode: string;
+  addressNo: string;
   soi: string;
   road: string;
   zipcode: string;
-  phone_number: string;
-  fax_number: string;
-  subdistrict_id: number;
+  phoneNumber: string;
+  faxNumber: string;
+  subdistrictId: number;
 };
 
 function isRegisterBody(v: unknown): v is RegisterBody {
@@ -29,17 +29,17 @@ function isRegisterBody(v: unknown): v is RegisterBody {
     reqStr("username") &&
     reqStr("password") &&
     reqStr("email") &&
-    reqNum("factory_type") &&
-    reqStr("name_th") &&
-    reqStr("name_en") &&
-    reqStr("tsic_code") &&
-    reqStr("address_no") &&
+    reqNum("factoryType") &&
+    reqStr("nameTh") &&
+    reqStr("nameEn") &&
+    reqStr("tsicCode") &&
+    reqStr("addressNo") &&
     typeof o["soi"] === "string" &&
     typeof o["road"] === "string" &&
     reqStr("zipcode") &&
-    reqStr("phone_number") &&
-    typeof o["fax_number"] === "string" &&
-    reqNum("subdistrict_id")
+    reqStr("phoneNumber") &&
+    typeof o["faxNumber"] === "string" &&
+    reqNum("subdistrictId")
   );
 }
 

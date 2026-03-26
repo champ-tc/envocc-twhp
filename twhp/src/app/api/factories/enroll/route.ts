@@ -98,7 +98,7 @@ const ensureApiBase = () => {
   return null;
 };
 
-const targetUrl = () => `${API_BASE_URL}/factories/enroll`;
+const targetUrl = () => `${API_BASE_URL}/factories/enrolls`;
 
 function forwardHeaders(
   req: NextRequest,
@@ -129,9 +129,13 @@ function forwardHeaders(
 }
 
 async function proxy(req: NextRequest, init: RequestInit) {
-  const upstream = await fetch(targetUrl(), {
+  const method = init.method || "GET";
+  const url = targetUrl();
+  const headersObj = forwardHeaders(req, init.headers);
+
+  const upstream = await fetch(url, {
     ...init,
-    headers: forwardHeaders(req, init.headers),
+    headers: headersObj,
     cache: "no-store",
   });
 
@@ -140,7 +144,7 @@ async function proxy(req: NextRequest, init: RequestInit) {
   if (!upstream.ok) {
     console.error("[api/factories/enroll][UPSTREAM ERROR]", {
       status: upstream.status,
-      url: targetUrl(),
+      url: url,
       response: text?.slice(0, 2000),
     });
   }
@@ -161,7 +165,8 @@ export async function GET(req: NextRequest) {
   if (err) return err;
 
   try {
-    return await proxy(req, { method: "GET" });
+    const upstream = await proxy(req, { method: "GET" });
+    return upstream;
   } catch (e) {
     console.error("[api/factories/enroll][GET] error:", e);
     return NextResponse.json(
@@ -209,12 +214,6 @@ export async function POST(req: NextRequest) {
 
   // ✅ รวมทุกอย่างเป็นก้อนเดียว
   const payloadFlat = { ...cleanEmployee, ...cleanStandard, ...cleanOfficer };
-
-  // log เฉพาะ keys (ไม่พิมพ์ข้อมูลส่วนบุคคลทั้งหมด)
-  console.log(
-    "[api/factories/enroll][POST] payloadFlat keys:",
-    Object.keys(payloadFlat),
-  );
 
   try {
     return await proxy(req, {

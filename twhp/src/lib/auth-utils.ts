@@ -4,6 +4,9 @@ export interface NormalizedUser {
   role: string;
   fullName: string;
   establishment: string;
+  provinceId?: number;
+  region?: number;
+  change_pw?: boolean;
 }
 
 type UserDetailFields = {
@@ -12,6 +15,8 @@ type UserDetailFields = {
   factory_name?: string;
   province?: string;
   name_th?: string; // 👈 สำหรับ Factory
+  province_id?: number;
+  region?: number;
   [k: string]: unknown;
 };
 
@@ -20,6 +25,7 @@ export interface RawAuthResponse {
   username: string;
   role: string;
   name_th?: string; // 👈 บาง backend อาจส่ง name_th ไว้ระดับ root
+  change_pw?: boolean;
   [k: string]: unknown;
 }
 
@@ -48,6 +54,7 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
       role,
       fullName: fullNameFromAdmin(d, raw.username),
       establishment: "กรมควบคุมโรค",
+      change_pw: raw.change_pw,
     };
   }
 
@@ -60,12 +67,13 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
       role,
       fullName: fullNameFromAdmin(d, raw.username),
       establishment: "ผู้ประเมินอิสระ",
+      change_pw: raw.change_pw,
     };
   }
 
   // ===== Provincial / Provicial =====
-  if (role === "Provincial" || role === "Provicial") {
-    const d = pickDetails(raw, ["provincial", "ProvicialOfficers"]);
+  if (role === "Provincial" || role === "Provicial" || role === "ODPC") {
+    const d = pickDetails(raw, ["provincial", "ProvicialOfficers", "odpc", "OdpcOfficers"]);
     const province =
       typeof d.province === "string" && d.province ? ` ${d.province}` : "";
 
@@ -74,7 +82,10 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
       username: raw.username,
       role,
       fullName: fullNameFromAdmin(d, raw.username),
-      establishment: `สำนักงานพลังงานจังหวัด${province}`,
+      establishment: role === "ODPC" ? "สำนักงานป้องกันควบคุมโรค" : `สำนักงานพลังงานจังหวัด${province}`,
+      provinceId: typeof d.province_id === "number" ? d.province_id : undefined,
+      region: typeof d.region === "number" ? d.region : undefined,
+      change_pw: raw.change_pw,
     };
   }
 
@@ -91,6 +102,7 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
       role,
       fullName,
       establishment,
+      change_pw: raw.change_pw,
     };
   }
 
@@ -101,5 +113,6 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
     role,
     fullName: raw.username,
     establishment: "ผู้ใช้งานทั่วไป",
+    change_pw: raw.change_pw,
   };
 }

@@ -89,8 +89,8 @@ export default function Sidebar({ userRole }: SidebarProps) {
           <>
             <MenuBtn
               icon={FileText}
-              label="สปก. ที่สมัครโครงการ"
-              path="/admins/assess"
+              label="รายชื่อสถานประกอบการ"
+              path="/admins/factories-list"
             />
           </>
         )}
@@ -106,6 +106,11 @@ export default function Sidebar({ userRole }: SidebarProps) {
               icon={FileText}
               label="สปก. ที่สมัครโครงการ"
               path="/admins/assess"
+            />
+            <MenuBtn
+              icon={FileText}
+              label="รายชื่อสถานประกอบการ"
+              path="/admins/factories-list"
             />
             <p className="px-3 text-xs text-gray-400 uppercase">ผู้ดูแลระบบ</p>
             <MenuBtn icon={Users} label="จัดการสมาชิก" path="/admins/officer" />

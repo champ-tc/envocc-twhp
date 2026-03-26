@@ -15,11 +15,12 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const { districtId } = await ctx.params;
 
   const r = await fetch(
-    `${API_BASE_URL}/locations/district/${encodeURIComponent(districtId)}/subdistricts`,
+    `${API_BASE_URL}/location/districts/${encodeURIComponent(districtId)}/subdistricts`,
     { cache: "no-store" },
   );
 
   const text = await r.text();
+
   return new NextResponse(text, {
     status: r.status,
     headers: {

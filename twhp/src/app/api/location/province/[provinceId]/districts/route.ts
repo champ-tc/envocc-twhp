@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   const { provinceId } = await ctx.params;
 
   const r = await fetch(
-    `${API_BASE_URL}/locations/province/${encodeURIComponent(provinceId)}/districts`,
+    `${API_BASE_URL}/location/provinces/${encodeURIComponent(provinceId)}/districts`,
     { cache: "no-store" },
   );
 

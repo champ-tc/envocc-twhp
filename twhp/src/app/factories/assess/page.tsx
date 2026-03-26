@@ -162,11 +162,6 @@ export default function UserMainPage() {
       .finally(() => setIsLoading(false));
   }, [router]);
 
-  // ✅ --- check enroll status (ใหม่ตาม requirement) ---
-  // เงื่อนไข:
-  // - GET 200 + message === "no enrollment found" => สมัครได้ (alreadyEnrolled=false)
-  // - GET 200 + message อื่น => สมัครไปแล้ว/ไม่ให้สมัคร (alreadyEnrolled=true)
-  // - status อื่น => ปิดการสมัครไว้ก่อน (alreadyEnrolled=true) พร้อม note
   useEffect(() => {
     if (!user) return;
 
@@ -181,9 +176,6 @@ export default function UserMainPage() {
         });
 
         const raw = await res.text();
-        console.groupCollapsed("🔎 enroll GET");
-        console.log({ status: res.status, ok: res.ok, raw });
-        console.groupEnd();
 
         let data: { message?: string } | null = null;
         try {
@@ -549,7 +541,7 @@ export default function UserMainPage() {
                     }
                     error={
                       officer.safety_officer_email.trim() &&
-                      !emailOk(officer.safety_officer_email)
+                        !emailOk(officer.safety_officer_email)
                         ? "รูปแบบอีเมลไม่ถูกต้อง"
                         : ""
                     }
@@ -588,11 +580,10 @@ export default function UserMainPage() {
                 <button
                   onClick={submit}
                   disabled={submitting}
-                  className={`rounded-2xl px-6 py-3 font-semibold text-white shadow-sm ${
-                    submitting
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#2E8B57] hover:bg-[#277549]"
-                  }`}
+                  className={`rounded-2xl px-6 py-3 font-semibold text-white shadow-sm ${submitting
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-[#2E8B57] hover:bg-[#277549]"
+                    }`}
                 >
                   {submitting ? "กำลังส่ง..." : "ส่งใบสมัคร"}
                 </button>
@@ -654,9 +645,8 @@ function TextField({
     <div>
       <div className="text-sm font-medium text-black">{label}</div>
       <input
-        className={`mt-2 w-full rounded-2xl border px-4 py-3 text-black outline-none focus:ring-2 focus:ring-[#2E8B57]/30 ${
-          error ? "border-red-300" : "border-gray-200"
-        }`}
+        className={`mt-2 w-full rounded-2xl border px-4 py-3 text-black outline-none focus:ring-2 focus:ring-[#2E8B57]/30 ${error ? "border-red-300" : "border-gray-200"
+          }`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

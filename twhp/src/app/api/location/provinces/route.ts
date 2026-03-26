@@ -9,7 +9,7 @@ export async function GET() {
       { status: 500 },
     );
 
-  const r = await fetch(`${API_BASE_URL}/locations/provinces`, {
+  const r = await fetch(`${API_BASE_URL}/location/provinces`, {
     cache: "no-store",
   });
   const text = await r.text();

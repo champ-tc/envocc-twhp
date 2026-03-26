@@ -181,29 +181,12 @@ export default function RegisterPage() {
     });
   }
 
-  // load zipMap
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("/data/data.json", { cache: "force-cache" });
-        if (!res.ok) return;
-
-        const json = (await res.json()) as DataJson;
-        const m = new Map<number, string>();
-        for (const d of json.districts ?? []) m.set(d.id, String(d.zip_code));
-        setZipMap(m);
-      } catch {
-        setZipMap(new Map());
-      }
-    })();
-  }, []);
-
   // load provinces
   useEffect(() => {
     (async () => {
       setLoadingLoc(true);
       try {
-        const res = await fetch("/api/locations/provinces", { cache: "no-store" });
+        const res = await fetch("/api/location/provinces", { cache: "no-store" });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as ProvinceApi[];
         setProvinces(Array.isArray(data) ? data : []);
@@ -225,13 +208,12 @@ export default function RegisterPage() {
           ...p,
           district_id: "",
           subdistrict_id: "",
-          zipcode: "",
         }));
         return;
       }
       setLoadingLoc(true);
       try {
-        const res = await fetch(`/api/locations/province/${form.province_id}/districts`, {
+        const res = await fetch(`/api/location/province/${form.province_id}/districts`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error(await res.text());
@@ -242,7 +224,6 @@ export default function RegisterPage() {
           ...p,
           district_id: "",
           subdistrict_id: "",
-          zipcode: "",
         }));
       } catch {
         setDistricts([]);
@@ -258,18 +239,18 @@ export default function RegisterPage() {
     (async () => {
       if (form.district_id === "") {
         setSubdistricts([]);
-        setForm((p) => ({ ...p, subdistrict_id: "", zipcode: "" }));
+        setForm((p) => ({ ...p, subdistrict_id: "" }));
         return;
       }
       setLoadingLoc(true);
       try {
-        const res = await fetch(`/api/locations/district/${form.district_id}/subdistricts`, {
+        const res = await fetch(`/api/location/district/${form.district_id}/subdistricts`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error(await res.text());
         const data = (await res.json()) as SubdistrictApi[];
         setSubdistricts(Array.isArray(data) ? data : []);
-        setForm((p) => ({ ...p, subdistrict_id: "", zipcode: "" }));
+        setForm((p) => ({ ...p, subdistrict_id: "" }));
       } catch {
         setSubdistricts([]);
       } finally {
@@ -317,7 +298,7 @@ export default function RegisterPage() {
     if (form.district_id === "") e.district_id = "กรุณาเลือกอำเภอ";
     if (form.subdistrict_id === "") e.subdistrict_id = "กรุณาเลือกตำบล";
 
-    if (!form.zipcode.trim()) e.zipcode = "ไม่พบรหัสไปรษณีย์ของตำบลที่เลือก";
+    if (!form.zipcode.trim()) e.zipcode = "กรุณากรอกรหัสไปรษณีย์";
 
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -335,17 +316,17 @@ export default function RegisterPage() {
         username: form.username.trim(),
         password: form.password,
         email: form.email.trim(),
-        factory_type: form.factory_type,
-        name_th: form.name_th.trim(),
-        name_en: form.name_en.trim(),
-        tsic_code: form.tsic_code.trim(),
-        address_no: form.address_no.trim(),
+        factoryType: form.factory_type,
+        nameTh: form.name_th.trim(),
+        nameEn: form.name_en.trim(),
+        tsicCode: form.tsic_code.trim(),
+        addressNo: form.address_no.trim(),
         soi: form.soi.trim(),
         road: form.road.trim(),
         zipcode: form.zipcode.trim(),
-        phone_number: form.phone_number.trim(),
-        fax_number: form.fax_number.trim(),
-        subdistrict_id: Number(form.subdistrict_id),
+        phoneNumber: form.phone_number.trim(),
+        faxNumber: form.fax_number.trim(),
+        subdistrictId: Number(form.subdistrict_id),
       };
 
       const res = await fetch("/api/factories/register", {
@@ -621,7 +602,6 @@ export default function RegisterPage() {
                       province_id: v,
                       district_id: "",
                       subdistrict_id: "",
-                      zipcode: "",
                     }));
                   }}
                   disabled={loadingLoc}
@@ -647,7 +627,6 @@ export default function RegisterPage() {
                       ...p,
                       district_id: v,
                       subdistrict_id: "",
-                      zipcode: "",
                     }));
                   }}
                   disabled={loadingLoc || form.province_id === ""}
@@ -672,7 +651,6 @@ export default function RegisterPage() {
                     setForm((p) => ({
                       ...p,
                       subdistrict_id: v,
-                      zipcode: v !== "" ? zipMap.get(v) ?? "" : "",
                     }));
                   }}
                   disabled={loadingLoc || form.district_id === ""}
@@ -691,7 +669,14 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className={labelBase}>รหัสไปรษณีย์</label>
-                <input className={`${inputBase} bg-gray-100 cursor-not-allowed`} value={form.zipcode} readOnly aria-readonly="true" />
+                <input
+                  className={inputBase}
+                  value={form.zipcode}
+                  onChange={(e) => setField("zipcode", onlyDigits(e.target.value))}
+                  maxLength={5}
+                  minLength={5}
+                  placeholder="ตัวเลข 5 หลัก"
+                />
                 {errors.zipcode && <div className={errorText}>{errors.zipcode}</div>}
               </div>
 

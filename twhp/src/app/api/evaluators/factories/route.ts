@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const API_BASE_URL = process.env.API_BASE_URL!;
+
+export async function GET(req: NextRequest) {
+  const url = new URL(`${API_BASE_URL}/evaluators/factories`);
+
+  // Forward any search params
+  req.nextUrl.searchParams.forEach((value, key) => {
+    url.searchParams.set(key, value);
+  });
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      cookie: req.headers.get("cookie") || "",
+      Authorization: req.headers.get("authorization") || "",
+    },
+    cache: "no-store",
+  });
+
+  const data = await res.json();
+
+  console.log(data)
+  return NextResponse.json(data, { status: res.status });
+}
