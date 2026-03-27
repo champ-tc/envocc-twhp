@@ -32,8 +32,6 @@ export async function POST(request: Request) {
     // อ่าน json ถ้าอ่านไม่ได้ให้เป็น null
     const data = await apiRes.json().catch(() => null);
 
-    console.log(data)
-
     // ✅ ถ้า backend ตอบ error → map message แล้วส่งกลับ
     if (!apiRes.ok) {
       const backendMessage =

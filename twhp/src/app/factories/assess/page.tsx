@@ -4,104 +4,136 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import Navbar from "@/components/Navbar";
+import { FileText, ExternalLink } from "lucide-react";
 import type { NormalizedUser } from "@/lib/auth-utils";
 
 type AuthResponse = { isLoggedIn: boolean; user: NormalizedUser };
 
 type EmployeeKeys =
-  | "th"
-  | "mm"
-  | "kh"
-  | "la"
-  | "vn"
-  | "cn"
-  | "ph"
-  | "jp"
-  | "in"
-  | "other";
-type Sex = "m" | "f";
-type EmployeeState = Record<`employee_${EmployeeKeys}_${Sex}`, number>;
+  | "Th"
+  | "Mm"
+  | "Kh"
+  | "La"
+  | "Vn"
+  | "Cn"
+  | "Ph"
+  | "Jp"
+  | "In"
+  | "Other";
+type Sex = "M" | "F";
+type EmployeeState = Record<`employee${EmployeeKeys}${Sex}`, number>;
 
 type StandardState = {
-  standard_HC: boolean;
-  standard_SAN: boolean;
-  standard_wellness: boolean;
-  standard_safety: boolean;
-  standard_TIS18001: boolean;
-  standard_ISO45001: boolean;
-  standard_ISO14001: boolean;
-  standard_zero: boolean;
-  standard_5S: boolean;
-  standard_HAS: boolean;
+  standardHc: boolean;
+  standardSan: boolean;
+  standardSanPlus: boolean;
+  standardWellness: boolean;
+  standardSafety: boolean;
+  standardTis18001: boolean;
+  standardIso45001: boolean;
+  standardIso14001: boolean;
+  standardZero: boolean;
+  standard5S: boolean;
+  standardHas: boolean;
+};
+
+type FileState = {
+  fileStandardHc: File | null;
+  fileStandardSan: File | null;
+  filestandardSanPlus: File | null;
+  fileStandardWellness: File | null;
+  fileStandardSafety: File | null;
+  fileStandardTis18001: File | null;
+  fileStandardIso45001: File | null;
+  fileStandardIso14001: File | null;
+  fileStandardZero: File | null;
+  fileStandard5S: File | null;
+  fileStandardHas: File | null;
 };
 
 type SafetyOfficerState = {
-  safety_officer_prefix: string;
-  safety_officer_first_name: string;
-  safety_officer_last_name: string;
-  safety_officer_position: string;
-  safety_officer_email: string;
-  safety_officer_phone: string;
-  safety_officer_lineID: string;
+  safetyOfficerPrefix: string;
+  safetyOfficerFirstName: string;
+  safetyOfficerLastName: string;
+  safetyOfficerPosition: string;
+  safetyOfficerEmail: string;
+  safetyOfficerPhone: string;
+  safetyOfficerLineId: string;
 };
 
 const EMP_ROWS: Array<{ code: EmployeeKeys; label: string }> = [
-  { code: "th", label: "ไทย" },
-  { code: "mm", label: "เมียนมาร์" },
-  { code: "kh", label: "กัมพูชา" },
-  { code: "la", label: "ลาว" },
-  { code: "vn", label: "เวียดนาม" },
-  { code: "cn", label: "จีน" },
-  { code: "ph", label: "ฟิลิปปินส์" },
-  { code: "jp", label: "ญี่ปุ่น" },
-  { code: "in", label: "อินเดีย" },
-  { code: "other", label: "อื่นๆ" },
+  { code: "Th", label: "ไทย" },
+  { code: "Mm", label: "เมียนมาร์" },
+  { code: "Kh", label: "กัมพูชา" },
+  { code: "La", label: "ลาว" },
+  { code: "Vn", label: "เวียดนาม" },
+  { code: "Cn", label: "จีน" },
+  { code: "Ph", label: "ฟิลิปปินส์" },
+  { code: "Jp", label: "ญี่ปุ่น" },
+  { code: "In", label: "อินเดีย" },
+  { code: "Other", label: "อื่นๆ" },
 ];
 
-const STD_ROWS: Array<{ k: keyof StandardState; label: string }> = [
-  { k: "standard_HC", label: "HC" },
-  { k: "standard_SAN", label: "SAN" },
-  { k: "standard_wellness", label: "Wellness" },
-  { k: "standard_safety", label: "Safety" },
-  { k: "standard_TIS18001", label: "TIS 18001" },
-  { k: "standard_ISO45001", label: "ISO 45001" },
-  { k: "standard_ISO14001", label: "ISO 14001" },
-  { k: "standard_zero", label: "Zero Accident" },
-  { k: "standard_5S", label: "5S" },
-  { k: "standard_HAS", label: "HAS" },
+const STD_ROWS: Array<{ k: keyof StandardState; fileK: keyof FileState; label: string }> = [
+  { k: "standardHc", fileK: "fileStandardHc", label: "โรงอาหารปลอดภัยใส่ใจสุขภาพ (Healthy Canteen)" },
+  { k: "standardSan", fileK: "fileStandardSan", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN)" },
+  { k: "standardSanPlus", fileK: "filestandardSanPlus", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN Plus)" },
+  { k: "standardWellness", fileK: "fileStandardWellness", label: "สถานประกอบกิจการดีเด่นด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน" },
+  { k: "standardSafety", fileK: "fileStandardSafety", label: "อุตสาหกรรมดีเด่น ประเภทการบริหารความปลอดภัย" },
+  { k: "standardTis18001", fileK: "fileStandardTis18001", label: "TIS 18001" },
+  { k: "standardIso45001", fileK: "fileStandardIso45001", label: "ISO 45001" },
+  { k: "standardIso14001", fileK: "fileStandardIso14001", label: "ISO 14001" },
+  { k: "standardZero", fileK: "fileStandardZero", label: "Zero Accident" },
+  { k: "standard5S", fileK: "fileStandard5S", label: "รางวัล 5ส ประเทศไทย (Thailand 5S Award)" },
+  { k: "standardHas", fileK: "fileStandardHas", label: "มาตรฐานส้วมสาธารณะระดับประเทศ (HAS)" },
 ];
 
 const makeEmployeeInit = (): EmployeeState =>
   Object.fromEntries(
     EMP_ROWS.flatMap(({ code }) => [
-      [`employee_${code}_m`, 0],
-      [`employee_${code}_f`, 0],
+      [`employee${code}M`, 0],
+      [`employee${code}F`, 0],
     ]),
   ) as EmployeeState;
 
 const EMP_INIT = makeEmployeeInit();
 
 const STD_INIT: StandardState = {
-  standard_HC: false,
-  standard_SAN: false,
-  standard_wellness: false,
-  standard_safety: false,
-  standard_TIS18001: false,
-  standard_ISO45001: false,
-  standard_ISO14001: false,
-  standard_zero: false,
-  standard_5S: false,
-  standard_HAS: false,
+  standardHc: false,
+  standardSan: false,
+  standardSanPlus: false,
+  standardWellness: false,
+  standardSafety: false,
+  standardTis18001: false,
+  standardIso45001: false,
+  standardIso14001: false,
+  standardZero: false,
+  standard5S: false,
+  standardHas: false,
+};
+
+const FILE_INIT: FileState = {
+  fileStandardHc: null,
+  fileStandardSan: null,
+  filestandardSanPlus: null,
+  fileStandardWellness: null,
+  fileStandardSafety: null,
+  fileStandardTis18001: null,
+  fileStandardIso45001: null,
+  fileStandardIso14001: null,
+  fileStandardZero: null,
+  fileStandard5S: null,
+  fileStandardHas: null,
 };
 
 const OFF_INIT: SafetyOfficerState = {
-  safety_officer_prefix: "",
-  safety_officer_first_name: "",
-  safety_officer_last_name: "",
-  safety_officer_position: "",
-  safety_officer_email: "",
-  safety_officer_phone: "",
-  safety_officer_lineID: "",
+  safetyOfficerPrefix: "",
+  safetyOfficerFirstName: "",
+  safetyOfficerLastName: "",
+  safetyOfficerPosition: "",
+  safetyOfficerEmail: "",
+  safetyOfficerPhone: "",
+  safetyOfficerLineId: "",
 };
 
 const toInt = (v: string) => {
@@ -116,9 +148,9 @@ const cleanPhone = (p: string) => p.replace(/[^\d+]/g, "").trim();
 
 const hasAnyContact = (o: SafetyOfficerState) =>
   Boolean(
-    o.safety_officer_email.trim() ||
-    cleanPhone(o.safety_officer_phone) ||
-    o.safety_officer_lineID.trim(),
+    o.safetyOfficerEmail.trim() ||
+    cleanPhone(o.safetyOfficerPhone) ||
+    o.safetyOfficerLineId.trim(),
   );
 
 // ✅ ทำให้ข้อความขึ้นใน UI อ่านง่ายขึ้น (ไม่กระทบ logic)
@@ -143,6 +175,8 @@ export default function UserMainPage() {
   const [open, setOpen] = useState(false);
   const [employee, setEmployee] = useState<EmployeeState>(EMP_INIT);
   const [standard, setStandard] = useState<StandardState>(STD_INIT);
+  const [files, setFiles] = useState<FileState>(FILE_INIT);
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
   const [officer, setOfficer] = useState<SafetyOfficerState>(OFF_INIT);
   const [submitting, setSubmitting] = useState(false);
 
@@ -158,114 +192,200 @@ export default function UserMainPage() {
         if (d.user.role !== "Factory") return router.push("/admins/dashboard");
         setUser(d.user);
       })
-      .catch(() => router.push("/"))
+      .catch((err) => {
+        console.error(err);
+        router.push("/");
+      })
       .finally(() => setIsLoading(false));
   }, [router]);
 
-  useEffect(() => {
+  const check = async () => {
     if (!user) return;
+    setCheckingEnroll(true);
+    try {
+      const res = await fetch("/api/factories/enrolls", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
 
-    const check = async () => {
-      setCheckingEnroll(true);
-
+      const raw = await res.text();
+      let data: any = null;
       try {
-        const res = await fetch("/api/factories/enroll", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const raw = await res.text();
-
-        let data: { message?: string } | null = null;
-        try {
-          data = raw ? (JSON.parse(raw) as { message?: string }) : null;
-        } catch {
-          data = null;
-        }
-
-        const msg = String(data?.message ?? "").trim();
-
-        if (res.status === 200) {
-          if (msg === "no enrollment found") {
-            setAlreadyEnrolled(false);
-            setEnrollInfo("");
-          } else {
-            setAlreadyEnrolled(true);
-            setEnrollInfo(msg ? `หมายเหตุ: ${msg}` : "");
-            setOpen(false);
-          }
-          return;
-        }
-
-        // ❌ ไม่ใช่ 200: ปิดการสมัครไว้ก่อน เพื่อไม่ให้สถานะเพี้ยน
-        setAlreadyEnrolled(true);
-        setEnrollInfo(
-          msg
-            ? `หมายเหตุ: ${msg}`
-            : `หมายเหตุ: ตรวจสอบสถานะไม่สำเร็จ (status ${res.status})`,
-        );
-        setOpen(false);
-      } catch (e) {
-        console.error("check enroll error:", e);
-        setAlreadyEnrolled(true);
-        setEnrollInfo("หมายเหตุ: ตรวจสอบสถานะไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-        setOpen(false);
-      } finally {
-        setCheckingEnroll(false);
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
       }
-    };
 
+      const msg = String(data?.message ?? "").trim();
+
+      if (res.status === 200) {
+        if (msg === "no enrollment found") {
+          setAlreadyEnrolled(false);
+          setEnrollInfo("");
+        } else {
+          setAlreadyEnrolled(true);
+          setEnrollInfo(msg ? `หมายเหตุ: ${msg}` : "");
+
+          // ✅ Robust Parsing: Handle array, nested enroll, or direct object
+          let enroll = data?.enroll;
+          if (!enroll && data) {
+            if (Array.isArray(data)) {
+              enroll = data[0];
+            } else if (typeof data === "object" && !data.message) {
+              enroll = data;
+            }
+          }
+
+          if (enroll) {
+            // Helper to get value from either camelCase or snake_case
+            const v = (c: string, s: string) => enroll[c] ?? enroll[s];
+
+            setEmployee({
+              employeeThM: Number(v("employeeThM", "employee_th_m") ?? 0),
+              employeeThF: Number(v("employeeThF", "employee_th_f") ?? 0),
+              employeeMmM: Number(v("employeeMmM", "employee_mm_m") ?? 0),
+              employeeMmF: Number(v("employeeMmF", "employee_mm_f") ?? 0),
+              employeeKhM: Number(v("employeeKhM", "employee_kh_m") ?? 0),
+              employeeKhF: Number(v("employeeKhF", "employee_kh_f") ?? 0),
+              employeeLaM: Number(v("employeeLaM", "employee_la_m") ?? 0),
+              employeeLaF: Number(v("employeeLaF", "employee_la_f") ?? 0),
+              employeeVnM: Number(v("employeeVnM", "employee_vn_m") ?? 0),
+              employeeVnF: Number(v("employeeVnF", "employee_vn_f") ?? 0),
+              employeeCnM: Number(v("employeeCnM", "employee_cn_m") ?? 0),
+              employeeCnF: Number(v("employeeCnF", "employee_cn_f") ?? 0),
+              employeePhM: Number(v("employeePhM", "employee_ph_m") ?? 0),
+              employeePhF: Number(v("employeePhF", "employee_ph_f") ?? 0),
+              employeeJpM: Number(v("employeeJpM", "employee_jp_m") ?? 0),
+              employeeJpF: Number(v("employeeJpF", "employee_jp_f") ?? 0),
+              employeeInM: Number(v("employeeInM", "employee_in_m") ?? 0),
+              employeeInF: Number(v("employeeInF", "employee_in_f") ?? 0),
+              employeeOtherM: Number(v("employeeOtherM", "employee_other_m") ?? 0),
+              employeeOtherF: Number(v("employeeOtherF", "employee_other_f") ?? 0),
+            });
+
+            setStandard({
+              standardHc: !!v("standardHc", "standard_hc"),
+              standardSan: !!v("standardSan", "standard_san"),
+              standardSanPlus: !!v("standardSanPlus", "standard_san_plus"),
+              standardWellness: !!v("standardWellness", "standard_wellness"),
+              standardSafety: !!v("standardSafety", "standard_safety"),
+              standardTis18001: !!v("standardTis18001", "standard_tis_18001"),
+              standardIso45001: !!v("standardIso45001", "standard_iso_45001"),
+              standardIso14001: !!v("standardIso14001", "standard_iso_14001"),
+              standardZero: !!v("standardZero", "standard_zero"),
+              standard5S: !!v("standard5S", "standard_5s"),
+              standardHas: !!v("standardHas", "standard_has"),
+            });
+
+            setOfficer({
+              safetyOfficerPrefix: v("safetyOfficerPrefix", "safety_officer_prefix") || "",
+              safetyOfficerFirstName: v("safetyOfficerFirstName", "safety_officer_first_name") || "",
+              safetyOfficerLastName: v("safetyOfficerLastName", "safety_officer_last_name") || "",
+              safetyOfficerPosition: v("safetyOfficerPosition", "safety_officer_position") || "",
+              safetyOfficerEmail: v("safetyOfficerEmail", "safety_officer_email") || "",
+              safetyOfficerPhone: v("safetyOfficerPhone", "safety_officer_phone") || "",
+              safetyOfficerLineId: v("safetyOfficerLineId", "safety_officer_line_id") || "",
+            });
+
+            // ✅ Map File URLs
+            const urls: Record<string, string> = {};
+            STD_ROWS.forEach(({ k }) => {
+              const urlKeyCamel = `file${k.charAt(0).toUpperCase()}${k.slice(1)}Url`;
+              const snakePart = k.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
+              const urlKeySnake = `file_${snakePart}_url`;
+              urls[k] = v(urlKeyCamel, urlKeySnake) || "";
+            });
+            setFileUrls(urls);
+          }
+
+          // (Cover check can still happen if we want to show/hide certain UI parts, 
+          //  but we won't auto-redirect as requested)
+          try {
+            const coverRes = await fetch("/api/factories/assessments/covers", {
+              method: "GET",
+              credentials: "include",
+              cache: "no-store",
+            });
+            if (coverRes.status === 200) {
+              // Keep state or just ignore here, handleCreateCover will check again
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
+        return;
+      }
+
+      // Handle error status
+      setAlreadyEnrolled(true);
+      setEnrollInfo(`หมายเหตุ: ${msg || "ตรวจสอบสถานะไม่สำเร็จ"}`);
+    } catch (e) {
+      console.error("check enroll error:", e);
+    } finally {
+      setCheckingEnroll(false);
+    }
+  };
+
+  useEffect(() => {
     check();
   }, [user]);
+
+  const handleEditEnrollment = async () => {
+    await check(); // Fresh fetch to ensure data is displayed
+    setOpen(true);
+  };
 
   const totals = useMemo(() => {
     let m = 0,
       f = 0;
     for (const { code } of EMP_ROWS) {
-      m += employee[`employee_${code}_m`];
-      f += employee[`employee_${code}_f`];
+      m += employee[`employee${code}M` as keyof EmployeeState];
+      f += employee[`employee${code}F` as keyof EmployeeState];
     }
     return { m, f, all: m + f };
   }, [employee]);
 
   const canSubmit = useMemo(() => {
-    if (alreadyEnrolled) return false;
+    // if (alreadyEnrolled) return false; // Allowed to update
 
     const hasEmployee = totals.all > 0;
 
     const requiredName =
-      officer.safety_officer_prefix.trim() &&
-      officer.safety_officer_first_name.trim() &&
-      officer.safety_officer_last_name.trim() &&
-      officer.safety_officer_position.trim();
+      officer.safetyOfficerPrefix.trim() &&
+      officer.safetyOfficerFirstName.trim() &&
+      officer.safetyOfficerLastName.trim() &&
+      officer.safetyOfficerPosition.trim();
 
     const contactOk = hasAnyContact(officer);
-    const emailValid = emailOk(officer.safety_officer_email);
+    const emailValid = emailOk(officer.safetyOfficerEmail);
 
-    return Boolean(hasEmployee && requiredName && contactOk && emailValid);
-  }, [alreadyEnrolled, totals.all, officer]);
+    const standardsOk = STD_ROWS.every(({ k, fileK }) => {
+      if (standard[k]) {
+        return files[fileK] !== null;
+      }
+      return true;
+    });
+
+    return Boolean(hasEmployee && requiredName && contactOk && emailValid && standardsOk);
+  }, [alreadyEnrolled, totals.all, officer, standard, files]);
 
   const reset = () => {
     setEmployee(EMP_INIT);
     setStandard(STD_INIT);
+    setFiles(FILE_INIT);
     setOfficer(OFF_INIT);
   };
 
   const submit = async () => {
-    if (alreadyEnrolled) {
-      window.alert("ท่านสมัครเข้าร่วมโครงการเรียบร้อยแล้ว");
-      return;
-    }
-
     if (totals.all <= 0)
       return window.alert("กรุณากรอกจำนวนพนักงานรวมให้มากกว่า 0");
 
     const requiredName =
-      officer.safety_officer_prefix.trim() &&
-      officer.safety_officer_first_name.trim() &&
-      officer.safety_officer_last_name.trim() &&
-      officer.safety_officer_position.trim();
+      officer.safetyOfficerPrefix.trim() &&
+      officer.safetyOfficerFirstName.trim() &&
+      officer.safetyOfficerLastName.trim() &&
+      officer.safetyOfficerPosition.trim();
     if (!requiredName)
       return window.alert(
         "กรุณากรอกข้อมูลผู้ติดต่อ (คำนำหน้า/ชื่อ/นามสกุล/ตำแหน่ง) ให้ครบ",
@@ -276,20 +396,47 @@ export default function UserMainPage() {
         "กรุณากรอกช่องทางติดต่ออย่างน้อย 1 อย่าง (อีเมล หรือ โทรศัพท์ หรือ LINE ID)",
       );
 
-    if (!emailOk(officer.safety_officer_email))
+    if (!emailOk(officer.safetyOfficerEmail))
       return window.alert("รูปแบบอีเมลไม่ถูกต้อง");
+
+    const missingFile = STD_ROWS.find(({ k, fileK }) => standard[k] && !files[fileK]);
+    if (missingFile) {
+      return window.alert(`กรุณาแนบไฟล์สำหรับ: ${missingFile.label}`);
+    }
+
+    let invalidType = false;
+    let invalidSize = false;
+    Object.values(files).forEach((v) => {
+      if (v instanceof File) {
+        if (v.type !== "application/pdf" && !v.name.toLowerCase().endsWith(".pdf")) invalidType = true;
+        if (v.size > 10 * 1024 * 1024) invalidSize = true;
+      }
+    });
+
+    if (invalidType)
+      return window.alert("ไม่อนุญาตให้อัปโหลดไฟล์ที่ไม่ใช่ PDF กรุณาตรวจสอบไฟล์แนบอีกครั้ง");
+    if (invalidSize)
+      return window.alert("ขนาดไฟล์แนบแต่ละไฟล์ต้องไม่เกิน 10MB กรุณาตรวจสอบไฟล์แนบอีกครั้ง");
 
     if (!window.confirm("ท่านต้องการยืนยันสมัครโครงการหรือไม่?")) return;
 
     try {
       setSubmitting(true);
 
-      // ส่งแบบเดิมจากหน้า: employee/standard/safety_officer
-      const res = await fetch("/api/factories/enroll", {
-        method: "POST",
+      const formData = new FormData();
+      Object.entries(employee).forEach(([k, v]) => formData.append(k, (v as any)));
+      Object.entries(standard).forEach(([k, v]) => formData.append(k, (v as any)));
+      Object.entries(officer).forEach(([k, v]) => formData.append(k, (v as any)));
+
+      Object.entries(files).forEach(([k, v]) => {
+        if (v instanceof File) formData.append(k, v);
+      });
+
+      const method = alreadyEnrolled ? "PATCH" : "POST";
+      const res = await fetch("/api/factories/enrolls", {
+        method: method,
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employee, standard, safety_officer: officer }),
+        body: formData,
       });
 
       if (res.ok) {
@@ -307,10 +454,9 @@ export default function UserMainPage() {
         msg ? `สมัครโครงการไม่สำเร็จ ❌\n${msg}` : "สมัครโครงการไม่สำเร็จ ❌",
       );
 
-      // ✅ หลัง submit ไม่ผ่าน ให้ re-check เพื่อ sync สถานะ (กันเคส backend บอก already enroll)
       setCheckingEnroll(true);
       try {
-        const re = await fetch("/api/factories/enroll", {
+        const re = await fetch("/api/factories/enrolls", {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -336,6 +482,54 @@ export default function UserMainPage() {
       window.alert("สมัครโครงการไม่สำเร็จ ❌ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const [isCreatingCover, setIsCreatingCover] = useState(false);
+
+  const handleCreateCover = async () => {
+    if (!window.confirm("ท่านต้องการสร้างแบบประเมินใช่หรือไม่?")) return;
+
+    try {
+      setIsCreatingCover(true);
+
+      // 1) ลอง GET ก่อนว่ามีอยู่แล้วหรือยัง
+      const getRes = await fetch("/api/factories/assessments/covers", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      if (getRes.status === 200) {
+        // ถ้ามีอยู่แล้วให้ไปหน้าถัดไปเลย
+        router.push("/factories/question");
+        return;
+      }
+
+      // 2) ถ้าไม่สำเร็จ (เช่น 400) ให้ลอง POST เพื่อสร้าง
+      const postRes = await fetch("/api/factories/assessments/covers", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (postRes.status === 200) {
+        window.alert("สร้างแบบประเมินสำเร็จ ✅");
+        router.push("/factories/question");
+      } else if (postRes.status === 400) {
+        // หากส่งไปแล้วยังพบว่ามีอยู่แล้ว (อาจจะ race condition)
+        window.alert("ท่านมีแบบประเมินสำหรับปีนี้อยู่แล้ว");
+        router.push("/factories/question");
+      } else if (postRes.status === 404) {
+        window.alert("ไม่พอข้อมูลการลงทะเบียน (Enroll not found)");
+      } else {
+        const text = await postRes.text();
+        window.alert(`เกิดข้อผิดพลาดในการสร้าง: ${postRes.status} ${text}`);
+      }
+    } catch (err) {
+      console.error(err);
+      window.alert("เกิดข้อผิดพลาดในการเชื่อมต่อระบบ");
+    } finally {
+      setIsCreatingCover(false);
     }
   };
 
@@ -368,8 +562,32 @@ export default function UserMainPage() {
                   กำลังตรวจสอบสถานะการสมัคร...
                 </div>
               ) : alreadyEnrolled ? (
-                <div className="rounded-2xl bg-white/95 p-4 text-black font-semibold">
-                  ท่านลงสมัครโครงการเรียบร้อยแล้ว
+                <div className="rounded-2xl bg-white p-6 text-center text-black shadow-sm mt-4 border border-gray-100">
+                  <div className="font-semibold mb-2 text-lg">ท่านลงสมัครโครงการเรียบร้อยแล้ว</div>
+                  <div className="text-gray-600 text-sm mb-4">
+                    กรุณากดปุ่มด้านล่างเพื่อสร้างแบบประเมินสำหรับสถานประกอบการของท่าน
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button
+                      onClick={handleCreateCover}
+                      disabled={isCreatingCover}
+                      className="bg-[#2E8B57] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#246e45] transition-all shadow-md active:scale-95 disabled:opacity-50"
+                    >
+                      {isCreatingCover ? "กำลังดำเนินการ..." : "กดเพื่อสร้างแบบประเมิน"}
+                    </button>
+                    <button
+                      onClick={handleEditEnrollment}
+                      className="text-[#2E8B57] border-2 border-[#2E8B57] px-8 py-3 rounded-2xl font-bold hover:bg-[#E9F7EF] transition-all active:scale-95"
+                    >
+                      แก้ไขข้อมูลการสมัคร
+                    </button>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <p className="text-[#2E8B57] font-semibold flex items-center justify-center gap-2">
+                       <span className="w-2 h-2 bg-[#2E8B57] rounded-full animate-pulse" />
+                       ด้านล่างมีแบบประเมินทั้งหมด 41 ข้อ
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3 items-center">
@@ -389,7 +607,7 @@ export default function UserMainPage() {
             </div>
           </div>
 
-          {open && !alreadyEnrolled && (
+          {open && (
             <div className="mt-8 space-y-6">
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -431,8 +649,8 @@ export default function UserMainPage() {
                     </thead>
                     <tbody>
                       {EMP_ROWS.map(({ code, label }) => {
-                        const mk = `employee_${code}_m` as const;
-                        const fk = `employee_${code}_f` as const;
+                        const mk = `employee${code}M` as keyof EmployeeState;
+                        const fk = `employee${code}F` as keyof EmployeeState;
                         const m = employee[mk];
                         const f = employee[fk];
                         return (
@@ -487,14 +705,59 @@ export default function UserMainPage() {
               </Card>
 
               <Card title="2) มาตรฐานความปลอดภัย (Standard)">
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {STD_ROWS.map(({ k, label }) => (
-                    <CheckItem
-                      key={k}
-                      label={label}
-                      checked={standard[k]}
-                      onChange={(v) => setStandard((s) => ({ ...s, [k]: v }))}
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-3">
+                  {STD_ROWS.map(({ k, fileK, label }) => (
+                    <div key={k} className="flex flex-col gap-2 p-3 border border-gray-100 rounded-2xl bg-gray-50">
+                      <CheckItem
+                        label={label}
+                        checked={standard[k]}
+                        onChange={(v) => {
+                          setStandard((s) => ({ ...s, [k]: v }));
+                          if (!v) setFiles((f) => ({ ...f, [fileK]: null }));
+                        }}
+                      />
+                      {standard[k] && (
+                        <div className="mt-1">
+                          <label className="text-xs text-gray-700 font-medium mb-1 block">แนบไฟล์ (PDF เท่านั้น, ขนาดไม่เกิน 10MB)</label>
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            className="text-xs w-full bg-white border border-gray-200 rounded-xl p-2 file:mr-2 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:bg-[#E9F7EF] file:text-[#277549] hover:file:bg-[#D1EBDC] cursor-pointer"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              if (file) {
+                                if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+                                  alert("กรุณาแนบไฟล์ PDF เท่านั้น");
+                                  e.target.value = "";
+                                  setFiles((f) => ({ ...f, [fileK]: null }));
+                                  return;
+                                }
+                                if (file.size > 10 * 1024 * 1024) {
+                                  alert("ขนาดไฟล์ต้องไม่เกิน 10MB");
+                                  e.target.value = "";
+                                  setFiles((f) => ({ ...f, [fileK]: null }));
+                                  return;
+                                }
+                              }
+                              setFiles((f) => ({ ...f, [fileK]: file }));
+                            }}
+                          />
+                        </div>
+                      )}
+                      {fileUrls[k] && (
+                        <div className="mt-2 pl-1">
+                          <a
+                            href={fileUrls[k]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#2E8B57] font-semibold hover:underline flex items-center gap-1.5 bg-[#E9F7EF] w-fit px-3 py-1.5 rounded-xl border border-[#BFE6D1]"
+                          >
+                            <FileText size={14} />
+                            ดูไฟล์เดิมที่เคยอัปโหลด
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </Card>
@@ -503,61 +766,61 @@ export default function UserMainPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <TextField
                     label="คำนำหน้า*"
-                    value={officer.safety_officer_prefix}
+                    value={officer.safetyOfficerPrefix}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_prefix: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerPrefix: v }))
                     }
                   />
                   <TextField
                     label="ตำแหน่ง*"
-                    value={officer.safety_officer_position}
+                    value={officer.safetyOfficerPosition}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_position: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerPosition: v }))
                     }
                   />
                   <TextField
                     label="ชื่อ*"
-                    value={officer.safety_officer_first_name}
+                    value={officer.safetyOfficerFirstName}
                     onChange={(v) =>
                       setOfficer((s) => ({
                         ...s,
-                        safety_officer_first_name: v,
+                        safetyOfficerFirstName: v,
                       }))
                     }
                   />
                   <TextField
                     label="นามสกุล*"
-                    value={officer.safety_officer_last_name}
+                    value={officer.safetyOfficerLastName}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_last_name: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerLastName: v }))
                     }
                   />
 
                   <TextField
                     label="อีเมล"
-                    value={officer.safety_officer_email}
+                    value={officer.safetyOfficerEmail}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_email: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerEmail: v }))
                     }
                     error={
-                      officer.safety_officer_email.trim() &&
-                        !emailOk(officer.safety_officer_email)
+                      officer.safetyOfficerEmail.trim() &&
+                        !emailOk(officer.safetyOfficerEmail)
                         ? "รูปแบบอีเมลไม่ถูกต้อง"
                         : ""
                     }
                   />
                   <TextField
                     label="โทรศัพท์"
-                    value={officer.safety_officer_phone}
+                    value={officer.safetyOfficerPhone}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_phone: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerPhone: v }))
                     }
                   />
                   <TextField
                     label="LINE ID"
-                    value={officer.safety_officer_lineID}
+                    value={officer.safetyOfficerLineId}
                     onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safety_officer_lineID: v }))
+                      setOfficer((s) => ({ ...s, safetyOfficerLineId: v }))
                     }
                   />
 

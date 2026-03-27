@@ -34,42 +34,58 @@ type EnrolledFactoryRow = {
 
 // ===== Enroll Detail =====
 type EmployeeKeys =
-  | "th"
-  | "mm"
-  | "kh"
-  | "la"
-  | "vn"
-  | "cn"
-  | "ph"
-  | "jp"
-  | "in"
-  | "other";
-type Sex = "m" | "f";
-type EmployeeField = `employee_${EmployeeKeys}_${Sex}`;
+  | "Th"
+  | "Mm"
+  | "Kh"
+  | "La"
+  | "Vn"
+  | "Cn"
+  | "Ph"
+  | "Jp"
+  | "In"
+  | "Other";
+type Sex = "M" | "F";
+type EmployeeField = `employee${EmployeeKeys}${Sex}`;
 type EmployeeState = Partial<Record<EmployeeField, number>>;
 
 type StandardState = Partial<{
-  standard_HC: boolean;
-  standard_SAN: boolean;
-  standard_wellness: boolean;
-  standard_safety: boolean;
-  standard_TIS18001: boolean;
-  standard_ISO45001: boolean;
-  standard_ISO14001: boolean;
-  standard_zero: boolean;
-  standard_5S: boolean;
-  standard_HAS: boolean;
+  standardHc: boolean;
+  standardSan: boolean;
+  standardSanplus: boolean;
+  standardWellness: boolean;
+  standardSafety: boolean;
+  standardTis18001: boolean;
+  standardIso45001: boolean;
+  standardIso14001: boolean;
+  standardZero: boolean;
+  standard5S: boolean;
+  standardHas: boolean;
 }>;
 type StandardField = keyof Required<StandardState>;
 
+type FileState = Partial<{
+  fileStandardHc: string;
+  fileStandardSan: string;
+  fileStandardSanplus: string;
+  fileStandardWellness: string;
+  fileStandardSafety: string;
+  fileStandardTis18001: string;
+  fileStandardIso45001: string;
+  fileStandardIso14001: string;
+  fileStandardZero: string;
+  fileStandard5S: string;
+  fileStandardHas: string;
+}>;
+type FileField = keyof Required<FileState>;
+
 type SafetyOfficerState = Partial<{
-  safety_officer_prefix: string;
-  safety_officer_first_name: string;
-  safety_officer_last_name: string;
-  safety_officer_position: string;
-  safety_officer_email: string;
-  safety_officer_phone: string;
-  safety_officer_lineID: string;
+  safetyOfficerPrefix: string;
+  safetyOfficerFirstName: string;
+  safetyOfficerLastName: string;
+  safetyOfficerPosition: string;
+  safetyOfficerEmail: string;
+  safetyOfficerPhone: string;
+  safetyOfficerLineId: string;
 }>;
 type OfficerField = keyof Required<SafetyOfficerState>;
 
@@ -83,6 +99,7 @@ type EnrollDetail = {
 
   employee?: EmployeeState;
   standard?: StandardState;
+  files?: FileState;
   safety_officer?: SafetyOfficerState;
 
   // เผื่อ backend ส่งแบบ flattened
@@ -90,29 +107,30 @@ type EnrollDetail = {
 };
 
 const EMP_ROWS: Array<{ code: EmployeeKeys; label: string }> = [
-  { code: "th", label: "ไทย" },
-  { code: "mm", label: "เมียนมาร์" },
-  { code: "kh", label: "กัมพูชา" },
-  { code: "la", label: "ลาว" },
-  { code: "vn", label: "เวียดนาม" },
-  { code: "cn", label: "จีน" },
-  { code: "ph", label: "ฟิลิปปินส์" },
-  { code: "jp", label: "ญี่ปุ่น" },
-  { code: "in", label: "อินเดีย" },
-  { code: "other", label: "อื่นๆ" },
+  { code: "Th", label: "ไทย" },
+  { code: "Mm", label: "เมียนมาร์" },
+  { code: "Kh", label: "กัมพูชา" },
+  { code: "La", label: "ลาว" },
+  { code: "Vn", label: "เวียดนาม" },
+  { code: "Cn", label: "จีน" },
+  { code: "Ph", label: "ฟิลิปปินส์" },
+  { code: "Jp", label: "ญี่ปุ่น" },
+  { code: "In", label: "อินเดีย" },
+  { code: "Other", label: "อื่นๆ" },
 ];
 
-const STD_ROWS: Array<{ k: StandardField; label: string }> = [
-  { k: "standard_HC", label: "Healthy Canteen" },
-  { k: "standard_SAN", label: "SAN" },
-  { k: "standard_wellness", label: "Wellness" },
-  { k: "standard_safety", label: "Safety" },
-  { k: "standard_TIS18001", label: "TIS 18001" },
-  { k: "standard_ISO45001", label: "ISO 45001" },
-  { k: "standard_ISO14001", label: "ISO 14001" },
-  { k: "standard_zero", label: "Zero Accident" },
-  { k: "standard_5S", label: "5S" },
-  { k: "standard_HAS", label: "HAS" },
+const STD_ROWS: Array<{ k: StandardField; fileK: FileField; label: string }> = [
+  { k: "standardHc", fileK: "fileStandardHc", label: "โรงอาหารปลอดภัยใส่ใจสุขภาพ (Healthy Canteen)" },
+  { k: "standardSan", fileK: "fileStandardSan", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN)" },
+  { k: "standardSanplus", fileK: "fileStandardSanplus", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN Plus)" },
+  { k: "standardWellness", fileK: "fileStandardWellness", label: "สถานประกอบกิจการดีเด่นด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน" },
+  { k: "standardSafety", fileK: "fileStandardSafety", label: "อุตสาหกรรมดีเด่น ประเภทการบริหารความปลอดภัย" },
+  { k: "standardTis18001", fileK: "fileStandardTis18001", label: "TIS 18001" },
+  { k: "standardIso45001", fileK: "fileStandardIso45001", label: "ISO 45001" },
+  { k: "standardIso14001", fileK: "fileStandardIso14001", label: "ISO 14001" },
+  { k: "standardZero", fileK: "fileStandardZero", label: "มาตรฐานส้วมสาธารณะระดับประเทศ (HAS)" },
+  { k: "standard5S", fileK: "fileStandard5S", label: "รางวัล 5ส ประเทศไทย (Thailand 5S Award)" },
+  { k: "standardHas", fileK: "fileStandardHas", label: "มาตรฐานส้วมสาธารณะ" },
 ];
 
 function parseJsonSafe<T>(raw: string): T | null {
@@ -160,7 +178,7 @@ function getFromFlat(d: EnrollDetail, key: string): unknown {
 }
 
 function employeeKey(code: EmployeeKeys, sex: Sex): EmployeeField {
-  return `employee_${code}_${sex}` as EmployeeField;
+  return `employee${code}${sex}` as EmployeeField;
 }
 
 // รองรับทั้ง nested และ flattened
@@ -190,6 +208,20 @@ function getStandardValue(d: EnrollDetail | null, key: StandardField): boolean {
   const v = nested ?? flat;
 
   return v === true;
+}
+
+function getFileValue(d: EnrollDetail | null, key: FileField): string {
+  if (!d) return "";
+
+  const nested: unknown =
+    d.files && isRecord(d.files)
+      ? (d.files as Record<string, unknown>)[key]
+      : undefined;
+
+  const flat: unknown = getFromFlat(d, String(key));
+  const v = nested ?? flat;
+
+  return typeof v === "string" ? v : "";
 }
 
 function getOfficerValue(d: EnrollDetail | null, key: OfficerField): string {
@@ -440,8 +472,8 @@ export default function AdminAssessPage() {
     let m = 0;
     let f = 0;
     for (const { code } of EMP_ROWS) {
-      m += getEmployeeValue(detail, employeeKey(code, "m"));
-      f += getEmployeeValue(detail, employeeKey(code, "f"));
+      m += getEmployeeValue(detail, employeeKey(code, "M"));
+      f += getEmployeeValue(detail, employeeKey(code, "F"));
     }
     return { m, f, all: m + f };
   }, [detail]);
@@ -685,11 +717,11 @@ export default function AdminAssessPage() {
                             {EMP_ROWS.map(({ code, label }) => {
                               const m = getEmployeeValue(
                                 detail,
-                                employeeKey(code, "m"),
+                                employeeKey(code, "M"),
                               );
                               const f = getEmployeeValue(
                                 detail,
-                                employeeKey(code, "f"),
+                                employeeKey(code, "F"),
                               );
 
                               return (
@@ -723,25 +755,37 @@ export default function AdminAssessPage() {
                         มาตรฐานความปลอดภัย
                       </div>
                       <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                        {STD_ROWS.map(({ k, label }) => {
+                        {STD_ROWS.map(({ k, fileK, label }) => {
                           const checked = getStandardValue(detail, k);
+                          const fileUrl = getFileValue(detail, fileK);
                           return (
-                            <div
-                              key={String(k)}
-                              className={`rounded-2xl border px-4 py-3 flex items-center justify-between ${checked
-                                ? "bg-green-50 border-green-200"
-                                : "bg-gray-50 border-gray-200"
-                                }`}
-                            >
-                              <div className="text-sm font-medium text-black">
-                                {label}
-                              </div>
+                            <div key={String(k)} className="flex flex-col gap-2">
                               <div
-                                className={`text-xs font-semibold ${checked ? "text-green-900" : "text-gray-600"
+                                className={`rounded-2xl border px-4 py-3 flex items-center justify-between ${checked
+                                  ? "bg-green-50 border-green-200"
+                                  : "bg-gray-50 border-gray-200"
                                   }`}
                               >
-                                {checked ? "มี" : "ไม่มี"}
+                                <div className="text-sm font-medium text-black">
+                                  {label}
+                                </div>
+                                <div
+                                  className={`text-xs font-semibold ${checked ? "text-green-900" : "text-gray-600"
+                                    }`}
+                                >
+                                  {checked ? "มี" : "ไม่มี"}
+                                </div>
                               </div>
+                              {checked && fileUrl && (
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] font-semibold text-[#2E8B57] hover:underline px-2"
+                                >
+                                  ดูไฟล์แนบ
+                                </a>
+                              )}
                             </div>
                           );
                         })}
@@ -757,10 +801,10 @@ export default function AdminAssessPage() {
                         <InfoRow
                           label="ชื่อ-สกุล"
                           value={
-                            `${getOfficerValue(detail, "safety_officer_prefix")} ${getOfficerValue(
+                            `${getOfficerValue(detail, "safetyOfficerPrefix")} ${getOfficerValue(
                               detail,
-                              "safety_officer_first_name",
-                            )} ${getOfficerValue(detail, "safety_officer_last_name")}`.trim() ||
+                              "safetyOfficerFirstName",
+                            )} ${getOfficerValue(detail, "safetyOfficerLastName")}`.trim() ||
                             "-"
                           }
                         />
@@ -769,28 +813,28 @@ export default function AdminAssessPage() {
                           value={
                             getOfficerValue(
                               detail,
-                              "safety_officer_position",
+                              "safetyOfficerPosition",
                             ) || "-"
                           }
                         />
                         <InfoRow
                           label="โทรศัพท์"
                           value={
-                            getOfficerValue(detail, "safety_officer_phone") ||
+                            getOfficerValue(detail, "safetyOfficerPhone") ||
                             "-"
                           }
                         />
                         <InfoRow
                           label="อีเมล"
                           value={
-                            getOfficerValue(detail, "safety_officer_email") ||
+                            getOfficerValue(detail, "safetyOfficerEmail") ||
                             "-"
                           }
                         />
                         <InfoRow
                           label="LINE ID"
                           value={
-                            getOfficerValue(detail, "safety_officer_lineID") ||
+                            getOfficerValue(detail, "safetyOfficerLineId") ||
                             "-"
                           }
                         />

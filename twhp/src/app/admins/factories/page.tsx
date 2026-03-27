@@ -142,7 +142,6 @@ export default function AdminFactoriesPage() {
         credentials: "include",
         body: JSON.stringify({
           account_id: accountId,
-          is_validate: "true", // ✅ backend ต้องการ boolean string
         }),
       });
 
@@ -169,10 +168,9 @@ export default function AdminFactoriesPage() {
   if (!user) return null;
 
   const tabClass = (active: boolean) =>
-    `px-4 py-2 rounded-lg text-sm font-semibold border ${
-      active
-        ? "bg-blue-600 text-white border-blue-600"
-        : "bg-white text-gray-900 border-gray-300 hover:bg-gray-50"
+    `px-4 py-2 rounded-lg text-sm font-semibold border ${active
+      ? "bg-blue-600 text-white border-blue-600"
+      : "bg-white text-gray-900 border-gray-300 hover:bg-gray-50"
     }`;
 
   return (

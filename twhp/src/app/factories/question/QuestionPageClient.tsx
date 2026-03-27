@@ -7,6 +7,17 @@ import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import QuestionForm from './QuestionForm';
 
+interface ApiQuestion {
+    id: number;
+    category: string;
+    questionText: string;
+    standard: string;
+    choice1: string;
+    choice2: string;
+    choice3?: string;
+    choiceNA?: string | null;
+}
+
 interface Question {
     "0": string;
     "1": string;
@@ -19,7 +30,7 @@ interface Question {
 }
 
 interface QuestionPageClientProps {
-    questions: Question[];
+    // queries will be fetched locally
 }
 
 type AuthResponse = {
@@ -27,34 +38,93 @@ type AuthResponse = {
     user: NormalizedUser;
 };
 
-export default function QuestionPageClient({ questions }: QuestionPageClientProps) {
+export default function QuestionPageClient({ }: QuestionPageClientProps) {
     const router = useRouter();
     const [user, setUser] = useState<NormalizedUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isFetchingData, setIsFetchingData] = useState(true);
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [initialAnswers, setInitialAnswers] = useState<Record<string, number>>({});
     const [showInstructions, setShowInstructions] = useState(true);
 
     useEffect(() => {
-        fetch("/api/auth/authentication", { credentials: "include" })
-            .then(async (res) => {
+        const checkAuth = async () => {
+            try {
+                const res = await fetch("/api/auth/authentication", { credentials: "include" });
                 if (!res.ok) throw new Error(await res.text());
-                return (await res.json()) as AuthResponse;
-            })
-            .then((data) => {
+                const data = (await res.json()) as AuthResponse;
+                
                 if (!data?.isLoggedIn || !data.user) throw new Error("Unauthorized");
-
-                // Check Role
                 if (data.user.role !== "Factory") {
                     router.push("/admins/dashboard");
                     return;
                 }
-
                 setUser(data.user);
-            })
-            .catch(() => router.push("/"))
-            .finally(() => setIsLoading(false));
+            } catch (err) {
+                console.error(err);
+                router.push("/");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        checkAuth();
     }, [router]);
 
-    if (isLoading) return <div className="p-10 text-center text-slate-500">Loading...</div>;
+    useEffect(() => {
+        if (!user) return;
+
+        const fetchData = async () => {
+            try {
+                // Fetch Questions
+                const qRes = await fetch("/api/factories/assessments/questions", { credentials: "include" });
+                const apiQuestions = (await qRes.json()) as ApiQuestion[];
+
+                // Transform API questions to UI format
+                const transformed: Question[] = apiQuestions.map(q => {
+                    const noStr = q.id.toString();
+                    
+                    return {
+                        "0": "ไม่มีการดำเนินการ",
+                        "1": q.choice1,
+                        "2": q.choice2,
+                        "3": q.choice3 || "-",
+                        type: q.category,
+                        no: noStr,
+                        question: q.questionText,
+                        "N/A": q.choiceNA || "-"
+                    };
+                });
+                setQuestions(transformed);
+
+                // Fetch Existing Answers
+                try {
+                    const aRes = await fetch("/api/factories/assessments/answers", { credentials: "include" });
+                    if (aRes.ok) {
+                        const answersData = await aRes.json();
+                        const ansMap: Record<string, number> = {};
+                        if (Array.isArray(answersData)) {
+                            answersData.forEach((a: any) => {
+                                if (a.questionId !== undefined) {
+                                    ansMap[a.questionId.toString()] = Number(a.score);
+                                }
+                            });
+                        }
+                        setInitialAnswers(ansMap);
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch initial answers:", e);
+                }
+            } catch (err) {
+                // silenty handle or use a toast
+            } finally {
+                setIsFetchingData(false);
+            }
+        };
+
+        fetchData();
+    }, [user]);
+
+    if (isLoading || (user && isFetchingData)) return <div className="p-10 text-center text-slate-500">Loading...</div>;
     if (!user) return null;
 
     // Group questions by type
@@ -65,6 +135,23 @@ export default function QuestionPageClient({ questions }: QuestionPageClientProp
         acc[question.type].push(question);
         return acc;
     }, {} as Record<string, Question[]>);
+
+    // Sort categories (keys of groupedQuestions) by min question ID
+    const sortedGroupedQuestions = Object.keys(groupedQuestions)
+        .sort((a, b) => {
+            const minA = Math.min(...groupedQuestions[a].map(q => parseInt(q.no) || 0));
+            const minB = Math.min(...groupedQuestions[b].map(q => parseInt(q.no) || 0));
+            return minA - minB;
+        })
+        .reduce((acc, key) => {
+            // Sort questions within each category by numeric ID
+            acc[key] = groupedQuestions[key].sort((q1, q2) => {
+                const n1 = parseInt(q1.no) || 0;
+                const n2 = parseInt(q2.no) || 0;
+                return n1 - n2;
+            });
+            return acc;
+        }, {} as Record<string, Question[]>);
 
     return (
         <div className="flex bg-slate-50 min-h-screen font-sans">
@@ -138,7 +225,10 @@ export default function QuestionPageClient({ questions }: QuestionPageClientProp
                             </div>
                         )}
 
-                        <QuestionForm groupedQuestions={groupedQuestions} />
+                        <QuestionForm 
+                            groupedQuestions={sortedGroupedQuestions} 
+                            initialAnswers={initialAnswers}
+                        />
                     </div>
                 </main>
             </div>

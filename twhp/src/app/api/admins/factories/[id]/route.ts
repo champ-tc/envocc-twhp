@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 const API_BASE_URL = process.env.API_BASE_URL;
 
 type PatchBody = {
-  account_id: number; // ต้องส่งมา
-  is_validate: "true" | "false"; // backend ต้องการ boolean string
+  account_id: number;
 };
 
-type Ctx = { params: Promise<{ id: string }> }; // ✅ ให้ตรงกับที่ Next.js validate
+type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (!API_BASE_URL) {
@@ -29,14 +28,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     );
   }
 
-  if (body.is_validate !== "true" && body.is_validate !== "false") {
-    return NextResponse.json(
-      { message: 'is_validate must be "true" or "false" (string)' },
-      { status: 400 },
-    );
-  }
-
-  // (optional) เช็คว่าพารามิเตอร์ใน path ตรงกับ body.account_id
   const pathId = Number(id);
   if (Number.isFinite(pathId) && pathId !== body.account_id) {
     return NextResponse.json(
@@ -45,7 +36,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     );
   }
 
-  const targetUrl = `${API_BASE_URL}/admins/factory/validate/${encodeURIComponent(
+  const targetUrl = `${API_BASE_URL}/admins/factories/validate/${encodeURIComponent(
     String(body.account_id),
   )}`;
 
@@ -57,12 +48,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     },
     body: JSON.stringify({
       account_id: body.account_id,
-      is_validate: body.is_validate,
     }),
     cache: "no-store",
   });
 
   const text = await res.text();
+
+  console.log(text)
   return new NextResponse(text, {
     status: res.status,
     headers: {

@@ -17,6 +17,7 @@ interface Question {
 
 interface QuestionFormProps {
     groupedQuestions: Record<string, Question[]>;
+    initialAnswers?: Record<string, number>;
 }
 
 
@@ -25,14 +26,22 @@ type FilesState = Record<string, Record<number, File[]>>;
 const SPECIAL_QUESTIONS = ["14", "21", "32", "37"];
 
 
-export default function QuestionForm({ groupedQuestions }: QuestionFormProps) {
+export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: QuestionFormProps) {
     const router = useRouter();
     // Store answers as { questionNo: score }
-    const [answers, setAnswers] = useState<Record<string, number>>({});
+    const [answers, setAnswers] = useState<Record<string, number>>(initialAnswers);
     // Files: { [qNo]: { [level]: File[] } }
     const [files, setFiles] = useState<FilesState>({});
 
-    const [savedQuestionIds, setSavedQuestionIds] = useState<string[]>([]);
+    const [savedQuestionIds, setSavedQuestionIds] = useState<string[]>(Object.keys(initialAnswers));
+
+    // Update state when initialAnswers changes
+    React.useEffect(() => {
+        if (Object.keys(initialAnswers).length > 0) {
+            setAnswers(prev => ({ ...prev, ...initialAnswers }));
+            setSavedQuestionIds(prev => Array.from(new Set([...prev, ...Object.keys(initialAnswers)])));
+        }
+    }, [initialAnswers]);
     const [submitting, setSubmitting] = useState(false);
     const [errorIds, setErrorIds] = useState<string[]>([]);
 
@@ -45,7 +54,7 @@ export default function QuestionForm({ groupedQuestions }: QuestionFormProps) {
     }, [groupedQuestions]);
 
     const progress = savedQuestionIds.length;
-    const percentage = Math.round((progress / totalQuestions) * 100);
+    const percentage = totalQuestions > 0 ? Math.round((progress / totalQuestions) * 100) : 0;
 
     const handleScoreChange = (questionNo: string, score: number) => {
         setAnswers(prev => ({
@@ -138,19 +147,50 @@ export default function QuestionForm({ groupedQuestions }: QuestionFormProps) {
         return true;
     };
 
-    const handleSaveQuestion = (qNo: string) => {
+    const handleSaveQuestion = async (qNo: string) => {
         if (!validateQuestion(qNo)) {
             alert('กรุณาตอบคำถามและแนบไฟล์ให้ครบถ้วนทุกระดับคะแนนก่อนบันทึก');
             if (!errorIds.includes(qNo)) setErrorIds(prev => [...prev, qNo]);
             return;
         }
 
-        // Success Save
-        if (!savedQuestionIds.includes(qNo)) {
-            setSavedQuestionIds(prev => [...prev, qNo]);
+        const score = answers[qNo];
+        const questionFiles = files[qNo]?.[score] || [];
+
+        try {
+            const formData = new FormData();
+            formData.append("questionId", qNo);
+            formData.append("score", score.toString());
+            
+            questionFiles.forEach((file) => {
+                formData.append("files", file);
+            });
+
+            const isAlreadySaved = initialAnswers[qNo] !== undefined || savedQuestionIds.includes(qNo);
+            const method = isAlreadySaved ? "PATCH" : "POST";
+            const res = await fetch("/api/factories/assessments/answers", {
+                method: method,
+                body: formData,
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
+                throw new Error(errorData.message || "Failed to save answer");
+            }
+
+            // Success Save
+            if (!savedQuestionIds.includes(qNo)) {
+                setSavedQuestionIds(prev => [...prev, qNo]);
+            }
+            // Clear error
+            setErrorIds(prev => prev.filter(id => id !== qNo));
+            
+            // Optional: Provide small feedback? UI already shows checkmark
+        } catch (err: any) {
+            console.error("Save error:", err);
+            alert(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
         }
-        // Clear error
-        setErrorIds(prev => prev.filter(id => id !== qNo));
     };
 
     const handleFinalSubmit = () => {
@@ -297,7 +337,7 @@ export default function QuestionForm({ groupedQuestions }: QuestionFormProps) {
                                         })}
 
                                         {/* N/A Option */}
-                                        {q["N/A"] !== "-" && (
+                                        {q["N/A"] && q["N/A"] !== "-" && q["N/A"].trim() !== "" && (
                                             <div
                                                 onClick={() => handleScoreChange(q.no, -1)}
                                                 className={`
