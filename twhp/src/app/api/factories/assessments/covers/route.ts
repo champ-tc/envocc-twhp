@@ -39,6 +39,12 @@ function forwardHeaders(
   const auth = req.headers.get("authorization");
   if (auth) h.authorization = auth;
 
+  // Add X-API-Key
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = req.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+  if (apiKey) h["X-API-Key"] = apiKey;
+
   return h;
 }
 

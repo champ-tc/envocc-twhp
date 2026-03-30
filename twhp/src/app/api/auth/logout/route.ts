@@ -9,12 +9,17 @@ export async function POST(request: Request) {
   // รับ cookie จาก browser
   const cookieHeader = request.headers.get("cookie") || "";
 
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = request.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
   // เรียก backend logout
   const apiRes = await fetch(`${baseUrl}/authentication/logout`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       Cookie: cookieHeader, // ✅ forward cookie backend
+      ...(apiKey ? { "X-API-Key": apiKey } : {}),
     },
     cache: "no-store",
   });

@@ -3,15 +3,20 @@ import { normalizeUserData, type RawAuthResponse } from "@/lib/auth-utils";
 
 export async function GET(request: Request) {
   const baseUrl = process.env.API_BASE_URL;
-  if (!baseUrl)
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = request.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
+  if (!baseUrl) {
     return NextResponse.json({ isLoggedIn: false }, { status: 500 });
+  }
 
   const cookieHeader = request.headers.get("cookie") || "";
   if (!cookieHeader) {
     return NextResponse.json(
       {
         isLoggedIn: false,
-        debugCookies: [], // ไม่มี cookie ส่งมา
+        debugCookies: [],
       },
       { status: 401 },
     );
@@ -28,18 +33,24 @@ export async function GET(request: Request) {
     cache: "no-store",
     headers: {
       Accept: "application/json",
-      Cookie: cookieHeader, // ✅ forward cookie backend ไปตรง ๆ
+      Cookie: cookieHeader,
+      ...(apiKey ? { "X-API-Key": apiKey } : {}),
     },
   });
 
   if (!res.ok) {
     return NextResponse.json(
-      { isLoggedIn: false, backendError: await res.text(), debugCookies },
+      {
+        isLoggedIn: false,
+        backendError: await res.text(),
+        debugCookies,
+      },
       { status: res.status },
     );
   }
 
   const raw = (await res.json()) as RawAuthResponse;
+
   return NextResponse.json({
     isLoggedIn: true,
     user: normalizeUserData(raw),

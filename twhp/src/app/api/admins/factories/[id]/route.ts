@@ -40,11 +40,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     String(body.account_id),
   )}`;
 
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = req.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
   const res = await fetch(targetUrl, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Cookie: cookieHeader, // forward cookie
+      ...(apiKey ? { "X-API-Key": apiKey } : {}),
     },
     body: JSON.stringify({
       account_id: body.account_id,

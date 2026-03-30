@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck, ChevronLeft } from "lucide-react";
 import Image from "next/image";
 import PDPAModal from "@/components/PDPAModal";
+import SearchableSelect from "@/components/SearchableSelect";
 
 type ProvinceApi = { province_id: number; name_th: string };
 type DistrictApi = { district_id: number; name_th: string };
@@ -292,7 +293,11 @@ export default function RegisterPage() {
     if (!/^\d{5}$/.test(tsic)) e.tsic_code = "TSIC ต้องเป็นตัวเลข 5 หลักเท่านั้น";
 
     if (!form.address_no.trim()) e.address_no = "กรุณากรอกที่อยู่";
-    if (!form.phone_number.trim()) e.phone_number = "กรุณากรอกเบอร์โทรศัพท์";
+    if (!form.phone_number.trim()) {
+      e.phone_number = "กรุณากรอกเบอร์โทรศัพท์";
+    } else if (!/^\d{10}$/.test(form.phone_number.trim())) {
+      e.phone_number = "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก";
+    }
 
     if (form.province_id === "") e.province_id = "กรุณาเลือกจังหวัด";
     if (form.district_id === "") e.district_id = "กรุณาเลือกอำเภอ";
@@ -592,27 +597,22 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className={labelBase}>จังหวัด</label>
-                <select
-                  className={inputBase}
+                <SearchableSelect
+                  options={provinces.map((p) => ({ id: p.province_id, label: p.name_th }))}
                   value={form.province_id}
-                  onChange={(e) => {
-                    const v = e.target.value ? Number(e.target.value) : "";
+                  placeholder={loadingLoc ? "กำลังโหลด..." : "เลือกจังหวัด"}
+                  onChange={(v) => {
+                    const val = v === "" ? "" : Number(v);
                     setForm((p) => ({
                       ...p,
-                      province_id: v,
+                      province_id: val,
                       district_id: "",
                       subdistrict_id: "",
                     }));
                   }}
                   disabled={loadingLoc}
-                >
-                  <option value="">{loadingLoc ? "กำลังโหลด..." : "เลือกจังหวัด"}</option>
-                  {provinces.map((p) => (
-                    <option key={p.province_id} value={p.province_id}>
-                      {p.name_th}
-                    </option>
-                  ))}
-                </select>
+                  error={errors.province_id}
+                />
                 {errors.province_id && <div className={errorText}>{errors.province_id}</div>}
               </div>
 
@@ -682,7 +682,14 @@ export default function RegisterPage() {
 
               <div>
                 <label className={labelBase}>เบอร์โทรศัพท์</label>
-                <input className={inputBase} value={form.phone_number} onChange={(e) => setField("phone_number", e.target.value)} />
+                <input
+                  className={inputBase}
+                  value={form.phone_number}
+                  maxLength={10}
+                  minLength={10}
+                  onChange={(e) => setField("phone_number", onlyDigits(e.target.value))}
+                  placeholder="ตัวเลข 10 หลัก"
+                />
                 {errors.phone_number && <div className={errorText}>{errors.phone_number}</div>}
               </div>
 

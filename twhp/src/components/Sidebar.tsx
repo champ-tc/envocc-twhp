@@ -77,11 +77,11 @@ export default function Sidebar({ userRole }: SidebarProps) {
               label="สมัครเข้าร่วมโครงการ"
               path="/factories/assess"
             />
-            <MenuBtn
+            {/* <MenuBtn
               icon={BarChart}
               label="สรุปผลการประเมิน"
               path="/factories/summary"
-            />
+            /> */}
           </>
         )}
 

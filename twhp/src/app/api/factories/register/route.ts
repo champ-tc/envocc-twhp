@@ -61,10 +61,17 @@ export async function POST(req: NextRequest) {
 
   const target = `${API_BASE_URL}/factories/register`;
 
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = req.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
   try {
     const r = await fetch(target, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { "X-API-Key": apiKey } : {}),
+      },
       body: JSON.stringify(body),
     });
 

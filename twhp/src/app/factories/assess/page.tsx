@@ -564,10 +564,10 @@ export default function UserMainPage() {
               ) : alreadyEnrolled ? (
                 <div className="rounded-2xl bg-white p-6 text-center text-black shadow-sm mt-4 border border-gray-100">
                   <div className="font-semibold mb-2 text-lg">ท่านลงสมัครโครงการเรียบร้อยแล้ว</div>
-                  <div className="text-gray-600 text-sm mb-4">
+                  {/* <div className="text-gray-600 text-sm mb-4">
                     กรุณากดปุ่มด้านล่างเพื่อสร้างแบบประเมินสำหรับสถานประกอบการของท่าน
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  </div> */}
+                  {/* <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <button
                       onClick={handleCreateCover}
                       disabled={isCreatingCover}
@@ -581,13 +581,13 @@ export default function UserMainPage() {
                     >
                       แก้ไขข้อมูลการสมัคร
                     </button>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-gray-100">
+                  </div> */}
+                  {/* <div className="mt-6 pt-4 border-t border-gray-100">
                     <p className="text-[#2E8B57] font-semibold flex items-center justify-center gap-2">
-                       <span className="w-2 h-2 bg-[#2E8B57] rounded-full animate-pulse" />
-                       ด้านล่างมีแบบประเมินทั้งหมด 41 ข้อ
+                      <span className="w-2 h-2 bg-[#2E8B57] rounded-full animate-pulse" />
+                      ด้านล่างมีแบบประเมินทั้งหมด 41 ข้อ
                     </p>
-                  </div>
+                  </div> */}
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3 items-center">

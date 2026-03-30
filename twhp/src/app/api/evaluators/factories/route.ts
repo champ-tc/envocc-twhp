@@ -10,11 +10,16 @@ export async function GET(req: NextRequest) {
     url.searchParams.set(key, value);
   });
 
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = req.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
   const res = await fetch(url.toString(), {
     method: "GET",
     headers: {
       cookie: req.headers.get("cookie") || "",
       Authorization: req.headers.get("authorization") || "",
+      ...(apiKey ? { "X-API-Key": apiKey } : {}),
     },
     cache: "no-store",
   });

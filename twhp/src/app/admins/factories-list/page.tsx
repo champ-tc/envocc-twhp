@@ -13,6 +13,8 @@ type AuthUser = {
   establishment: string;
   provinceId?: number;
   region?: number;
+  change_pw?: boolean;
+  eval_level?: string;
 };
 
 type AuthResponse = { isLoggedIn: boolean; user: AuthUser };
@@ -57,7 +59,6 @@ export default function EstablishmentListPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ---------- auth ----------
   useEffect(() => {
     let alive = true;
 
@@ -73,9 +74,7 @@ export default function EstablishmentListPage() {
 
         if (!d?.isLoggedIn || !d.user) throw new Error("Unauthorized");
 
-        const isAdmin = (ADMIN_ROLES as readonly string[]).includes(
-          d.user.role,
-        );
+        const isAdmin = (ADMIN_ROLES as readonly string[]).includes(d.user.role);
         if (!isAdmin) {
           router.replace("/admins/dashboard");
           return;
@@ -94,38 +93,50 @@ export default function EstablishmentListPage() {
     };
   }, [router]);
 
-  // ---------- load list ----------
   async function loadList() {
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      params.append("validated", "true");
-      params.append("enrolled", "true");
+
       if (user?.provinceId) {
         params.append("provinceId", String(user.provinceId));
       }
+
       if (user?.region) {
         params.append("region", String(user.region));
       }
 
+      const role = String(user?.role || "").toLowerCase();
+      const evalLevel = String(user?.eval_level || "").toLowerCase();
 
-      let apiUrl = "/api/evaluators/factories";
-      if (user?.role === "Province" || user?.role === "Provincial" || user?.role === "Provicial") {
-        apiUrl = "/api/provincialOfficers/factories";
-      } else if (user?.role === "Evaluator") {
-        apiUrl = "/api/evaluators/factories";
+      let apiUrl = "/api/admins/factories-list/factories/enrolls";
+
+      // level จังหวัด
+      if (
+        evalLevel === "provincial" ||
+        evalLevel === "province" ||
+        role === "provincial" ||
+        role === "provicial"
+      ) {
+        apiUrl = "/api/admins/factories-list/provincialOfficers/enrolls";
+      }
+      // level evaluator
+      else if (evalLevel === "evaluator" || role === "evaluator") {
+        apiUrl = "/api/admins/factories-list/factories/enrolls";
       }
 
-      const res = await fetch(`${apiUrl}?${params.toString()}`, {
+      const query = params.toString();
+      const res = await fetch(query ? `${apiUrl}?${query}` : apiUrl, {
         credentials: "include",
         cache: "no-store",
       });
 
-      // console.log(res)
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
 
-      if (!res.ok) throw new Error(await res.text());
       setRows(normalize(await res.json()));
     } catch (e) {
       setRows([]);
@@ -138,7 +149,6 @@ export default function EstablishmentListPage() {
   useEffect(() => {
     if (!user) return;
     loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (isLoading) return <div className="p-10 text-black">Loading...</div>;
@@ -217,40 +227,34 @@ export default function EstablishmentListPage() {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((r) => {
-                        return (
-                          <tr key={r.account_id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 border-b border-gray-200">
-                              <div className="font-semibold text-gray-900">
-                                {r.name_th || "-"}
-                              </div>
-                              <div className="text-xs text-gray-700">
-                                {r.name_en || "-"} • TSIC {r.tsic_code || "-"} •
-                                บัญชี {r.account_id}
-                              </div>
-                            </td>
+                      rows.map((r) => (
+                        <tr key={r.account_id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 border-b border-gray-200">
+                            <div className="font-semibold text-gray-900">
+                              {r.name_th || "-"}
+                            </div>
+                            <div className="text-xs text-gray-700">
+                              {r.name_en || "-"} • TSIC {r.tsic_code || "-"} • บัญชี{" "}
+                              {r.account_id}
+                            </div>
+                          </td>
 
-                            <td className="px-4 py-3 border-b border-gray-200 text-xs text-gray-900">
-                              {r.address_no || "-"} {r.soi ? `ซ.${r.soi}` : ""}{" "}
-                              {r.road ? `ถ.${r.road}` : ""}
-                              <div className="text-xs text-gray-700 mt-1">
-                                ต.{r.subdistrict_name_th || "-"} อ.
-                                {r.district_name_th || "-"} จ.
-                                {r.province_name_th || "-"} {r.zipcode || ""}
-                              </div>
-                            </td>
+                          <td className="px-4 py-3 border-b border-gray-200 text-xs text-gray-900">
+                            {r.address_no || "-"} {r.soi ? `ซ.${r.soi}` : ""}{" "}
+                            {r.road ? `ถ.${r.road}` : ""}
+                            <div className="text-xs text-gray-700 mt-1">
+                              ต.{r.subdistrict_name_th || "-"} อ.
+                              {r.district_name_th || "-"} จ.
+                              {r.province_name_th || "-"} {r.zipcode || ""}
+                            </div>
+                          </td>
 
-                            <td className="px-4 py-3 border-b border-gray-200 text-xs">
-                              <div className="text-gray-900">
-                                โทร {r.phone_number || "-"}
-                              </div>
-                              <div className="text-gray-700">
-                                แฟกซ์ {r.fax_number || "-"}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                          <td className="px-4 py-3 border-b border-gray-200 text-xs">
+                            <div className="text-gray-900">โทร {r.phone_number || "-"}</div>
+                            <div className="text-gray-700">แฟกซ์ {r.fax_number || "-"}</div>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>

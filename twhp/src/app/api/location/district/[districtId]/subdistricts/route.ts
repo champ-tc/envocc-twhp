@@ -4,7 +4,7 @@ const API_BASE_URL = process.env.API_BASE_URL;
 
 type Ctx = { params: Promise<{ districtId: string }> };
 
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
   if (!API_BASE_URL) {
     return NextResponse.json(
       { message: "Missing API_BASE_URL" },
@@ -14,9 +14,18 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const { districtId } = await ctx.params;
 
+  const envApiKey = process.env.TWHP_API_KEY;
+  const forwardedApiKey = req.headers.get("x-api-key");
+  const apiKey = envApiKey || forwardedApiKey || "";
+
   const r = await fetch(
     `${API_BASE_URL}/location/districts/${encodeURIComponent(districtId)}/subdistricts`,
-    { cache: "no-store" },
+    {
+      cache: "no-store",
+      headers: {
+        ...(apiKey ? { "X-API-Key": apiKey } : {}),
+      },
+    },
   );
 
   const text = await r.text();

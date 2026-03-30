@@ -22,6 +22,9 @@ export async function GET(req: NextRequest) {
       searchParams.get("account_id"); // ✅ เผื่อระบบคุณใช้ชื่ออื่น
 
     const cookieHeader = req.headers.get("cookie") || "";
+    const envApiKey = process.env.TWHP_API_KEY;
+    const forwardedApiKey = req.headers.get("x-api-key");
+    const apiKey = envApiKey || forwardedApiKey || "";
 
     // =========================================================
     // A) LIST: approved + enrolled
@@ -40,6 +43,7 @@ export async function GET(req: NextRequest) {
         headers: {
           Cookie: cookieHeader,
           "Content-Type": "application/json",
+          ...(apiKey ? { "X-API-Key": apiKey } : {}),
         },
         cache: "no-store",
       });
@@ -83,6 +87,7 @@ export async function GET(req: NextRequest) {
         headers: {
           Cookie: cookieHeader,
           "Content-Type": "application/json",
+          ...(apiKey ? { "X-API-Key": apiKey } : {}),
         },
         cache: "no-store",
       });

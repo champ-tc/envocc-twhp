@@ -16,29 +16,37 @@ function mapLoginMessage(raw: unknown): string {
 export async function POST(request: Request) {
   try {
     const { username, password } = await request.json();
+
     const baseUrl = process.env.API_BASE_URL;
-    if (!baseUrl) return NextResponse.json({ success: false }, { status: 500 });
+    const envApiKey = process.env.TWHP_API_KEY;
+    const forwardedApiKey = request.headers.get("x-api-key");
+
+    const apiKey = envApiKey || forwardedApiKey || "";
+
+    if (!baseUrl) {
+      return NextResponse.json(
+        { success: false, message: "API_BASE_URL not configured" },
+        { status: 500 },
+      );
+    }
 
     const apiRes = await fetch(`${baseUrl}/authentication/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...(apiKey ? { "X-API-Key": apiKey } : {}),
       },
       body: JSON.stringify({ username, password }),
       cache: "no-store",
     });
 
-    // อ่าน json ถ้าอ่านไม่ได้ให้เป็น null
     const data = await apiRes.json().catch(() => null);
 
-    // ✅ ถ้า backend ตอบ error → map message แล้วส่งกลับ
     if (!apiRes.ok) {
       const backendMessage =
         data?.message ?? data?.error ?? data?.msg ?? data?.detail ?? "";
       const message = mapLoginMessage(backendMessage);
-
-      // เลือก status ตาม backend ถ้าเป็น 401/403 ก็ส่งตามนั้น
       const status = apiRes.status || 401;
 
       return NextResponse.json({ success: false, message }, { status });
@@ -51,7 +59,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // ✅ สำเร็จ: ส่ง set-cookie จาก backend กลับไปให้ browser
     const res = NextResponse.json({
       success: true,
       redirectUrl: ["Provincial", "Provicial", "Evaluator", "DOED"].includes(
@@ -61,13 +68,28 @@ export async function POST(request: Request) {
         : "/factories/main",
     });
 
-    const setCookies =
-      apiRes.headers.getSetCookie?.() ??
-      (apiRes.headers.get("set-cookie")
-        ? [apiRes.headers.get("set-cookie")!]
-        : []);
+    const getSetCookie =
+      "getSetCookie" in apiRes.headers &&
+        typeof (apiRes.headers as Headers & { getSetCookie?: () => string[] })
+          .getSetCookie === "function"
+        ? (
+          apiRes.headers as Headers & {
+            getSetCookie: () => string[];
+          }
+        ).getSetCookie()
+        : [];
 
-    for (const c of setCookies) res.headers.append("set-cookie", c);
+    const fallbackSetCookie = apiRes.headers.get("set-cookie");
+    const setCookies =
+      getSetCookie.length > 0
+        ? getSetCookie
+        : fallbackSetCookie
+          ? [fallbackSetCookie]
+          : [];
+
+    for (const c of setCookies) {
+      res.headers.append("set-cookie", c);
+    }
 
     return res;
   } catch (e) {

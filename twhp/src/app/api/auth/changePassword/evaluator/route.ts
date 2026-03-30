@@ -11,11 +11,16 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     console.log(`[PATCH Evaluator] Sending body:`, body);
 
+    const envApiKey = process.env.TWHP_API_KEY;
+    const forwardedApiKey = request.headers.get("x-api-key");
+    const apiKey = envApiKey || forwardedApiKey || "";
+
     const res = await fetch(`${baseUrl}/evaluators/password`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Cookie: cookieHeader,
+        ...(apiKey ? { "X-API-Key": apiKey } : {}),
       },
       body: JSON.stringify(body),
     });
