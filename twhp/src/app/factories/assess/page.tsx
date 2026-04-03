@@ -40,7 +40,7 @@ type StandardState = {
 type FileState = {
   fileStandardHc: File | null;
   fileStandardSan: File | null;
-  filestandardSanPlus: File | null;
+  fileStandardSanPlus: File | null;
   fileStandardWellness: File | null;
   fileStandardSafety: File | null;
   fileStandardTis18001: File | null;
@@ -77,7 +77,7 @@ const EMP_ROWS: Array<{ code: EmployeeKeys; label: string }> = [
 const STD_ROWS: Array<{ k: keyof StandardState; fileK: keyof FileState; label: string }> = [
   { k: "standardHc", fileK: "fileStandardHc", label: "โรงอาหารปลอดภัยใส่ใจสุขภาพ (Healthy Canteen)" },
   { k: "standardSan", fileK: "fileStandardSan", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN)" },
-  { k: "standardSanPlus", fileK: "filestandardSanPlus", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN Plus)" },
+  { k: "standardSanPlus", fileK: "fileStandardSanPlus", label: "มาตรฐานสุขาภิบาลอาหาร : สถานที่จำหน่ายอาหาร (SAN Plus)" },
   { k: "standardWellness", fileK: "fileStandardWellness", label: "สถานประกอบกิจการดีเด่นด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน" },
   { k: "standardSafety", fileK: "fileStandardSafety", label: "อุตสาหกรรมดีเด่น ประเภทการบริหารความปลอดภัย" },
   { k: "standardTis18001", fileK: "fileStandardTis18001", label: "TIS 18001" },
@@ -115,7 +115,7 @@ const STD_INIT: StandardState = {
 const FILE_INIT: FileState = {
   fileStandardHc: null,
   fileStandardSan: null,
-  filestandardSanPlus: null,
+  fileStandardSanPlus: null,
   fileStandardWellness: null,
   fileStandardSafety: null,
   fileStandardTis18001: null,
@@ -146,10 +146,15 @@ const emailOk = (email: string) =>
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, "").trim();
 
+const phoneOk = (p: string) => {
+  const c = cleanPhone(p);
+  return c === "" || /^\d{10}$/.test(c);
+};
+
 const hasAnyContact = (o: SafetyOfficerState) =>
   Boolean(
     o.safetyOfficerEmail.trim() ||
-    cleanPhone(o.safetyOfficerPhone) ||
+    (cleanPhone(o.safetyOfficerPhone) && phoneOk(o.safetyOfficerPhone)) ||
     o.safetyOfficerLineId.trim(),
   );
 
@@ -171,14 +176,21 @@ export default function UserMainPage() {
   const [checkingEnroll, setCheckingEnroll] = useState(true);
   const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
   const [enrollInfo, setEnrollInfo] = useState<string>("");
+  const [hasCover, setHasCover] = useState(false);
+  const [coverStatus, setCoverStatus] = useState<string>("");
 
   const [open, setOpen] = useState(false);
   const [employee, setEmployee] = useState<EmployeeState>(EMP_INIT);
   const [standard, setStandard] = useState<StandardState>(STD_INIT);
   const [files, setFiles] = useState<FileState>(FILE_INIT);
-  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
+  const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const [officer, setOfficer] = useState<SafetyOfficerState>(OFF_INIT);
   const [submitting, setSubmitting] = useState(false);
+  const [initialData, setInitialData] = useState<{
+    employee: EmployeeState;
+    standard: StandardState;
+    officer: SafetyOfficerState;
+  } | null>(null);
 
   // --- auth ---
   useEffect(() => {
@@ -241,7 +253,7 @@ export default function UserMainPage() {
             // Helper to get value from either camelCase or snake_case
             const v = (c: string, s: string) => enroll[c] ?? enroll[s];
 
-            setEmployee({
+            const fetchedEmployee: EmployeeState = {
               employeeThM: Number(v("employeeThM", "employee_th_m") ?? 0),
               employeeThF: Number(v("employeeThF", "employee_th_f") ?? 0),
               employeeMmM: Number(v("employeeMmM", "employee_mm_m") ?? 0),
@@ -262,9 +274,9 @@ export default function UserMainPage() {
               employeeInF: Number(v("employeeInF", "employee_in_f") ?? 0),
               employeeOtherM: Number(v("employeeOtherM", "employee_other_m") ?? 0),
               employeeOtherF: Number(v("employeeOtherF", "employee_other_f") ?? 0),
-            });
+            };
 
-            setStandard({
+            const fetchedStandard: StandardState = {
               standardHc: !!v("standardHc", "standard_hc"),
               standardSan: !!v("standardSan", "standard_san"),
               standardSanPlus: !!v("standardSanPlus", "standard_san_plus"),
@@ -276,9 +288,9 @@ export default function UserMainPage() {
               standardZero: !!v("standardZero", "standard_zero"),
               standard5S: !!v("standard5S", "standard_5s"),
               standardHas: !!v("standardHas", "standard_has"),
-            });
+            };
 
-            setOfficer({
+            const fetchedOfficer: SafetyOfficerState = {
               safetyOfficerPrefix: v("safetyOfficerPrefix", "safety_officer_prefix") || "",
               safetyOfficerFirstName: v("safetyOfficerFirstName", "safety_officer_first_name") || "",
               safetyOfficerLastName: v("safetyOfficerLastName", "safety_officer_last_name") || "",
@@ -286,21 +298,31 @@ export default function UserMainPage() {
               safetyOfficerEmail: v("safetyOfficerEmail", "safety_officer_email") || "",
               safetyOfficerPhone: v("safetyOfficerPhone", "safety_officer_phone") || "",
               safetyOfficerLineId: v("safetyOfficerLineId", "safety_officer_line_id") || "",
+            };
+
+            setEmployee(fetchedEmployee);
+            setStandard(fetchedStandard);
+            setOfficer(fetchedOfficer);
+            setInitialData({
+              employee: { ...fetchedEmployee },
+              standard: { ...fetchedStandard },
+              officer: { ...fetchedOfficer },
             });
 
-            // ✅ Map File URLs
-            const urls: Record<string, string> = {};
+            // ✅ Map File Names / URLs
+            const names: Record<string, string> = {};
             STD_ROWS.forEach(({ k }) => {
-              const urlKeyCamel = `file${k.charAt(0).toUpperCase()}${k.slice(1)}Url`;
+              const camelName = `file${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+              const urlKeyCamel = `${camelName}Url`;
               const snakePart = k.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
               const urlKeySnake = `file_${snakePart}_url`;
-              urls[k] = v(urlKeyCamel, urlKeySnake) || "";
+              const nameKeySnake = `file_${snakePart}`;
+
+              names[k] = v(camelName, nameKeySnake) || v(urlKeyCamel, urlKeySnake) || "";
             });
-            setFileUrls(urls);
+            setFileNames(names);
           }
 
-          // (Cover check can still happen if we want to show/hide certain UI parts, 
-          //  but we won't auto-redirect as requested)
           try {
             const coverRes = await fetch("/api/factories/assessments/covers", {
               method: "GET",
@@ -308,10 +330,15 @@ export default function UserMainPage() {
               cache: "no-store",
             });
             if (coverRes.status === 200) {
-              // Keep state or just ignore here, handleCreateCover will check again
+              const coverData = await coverRes.json();
+              setHasCover(true);
+              setCoverStatus(coverData?.status || "");
+            } else {
+              setHasCover(false);
+              setCoverStatus("");
             }
           } catch (err) {
-            // ignore
+            setHasCover(false);
           }
         }
         return;
@@ -359,16 +386,18 @@ export default function UserMainPage() {
 
     const contactOk = hasAnyContact(officer);
     const emailValid = emailOk(officer.safetyOfficerEmail);
+    const phoneValid = phoneOk(officer.safetyOfficerPhone);
 
     const standardsOk = STD_ROWS.every(({ k, fileK }) => {
       if (standard[k]) {
-        return files[fileK] !== null;
+        // If editing, allow if either a new file is uploaded OR an old file exists
+        return files[fileK] !== null || !!fileNames[k];
       }
       return true;
     });
 
-    return Boolean(hasEmployee && requiredName && contactOk && emailValid && standardsOk);
-  }, [alreadyEnrolled, totals.all, officer, standard, files]);
+    return Boolean(hasEmployee && requiredName && contactOk && emailValid && phoneValid && standardsOk);
+  }, [alreadyEnrolled, totals.all, officer, standard, files, fileNames]);
 
   const reset = () => {
     setEmployee(EMP_INIT);
@@ -396,10 +425,10 @@ export default function UserMainPage() {
         "กรุณากรอกช่องทางติดต่ออย่างน้อย 1 อย่าง (อีเมล หรือ โทรศัพท์ หรือ LINE ID)",
       );
 
-    if (!emailOk(officer.safetyOfficerEmail))
-      return window.alert("รูปแบบอีเมลไม่ถูกต้อง");
+    if (officer.safetyOfficerPhone.trim() && !phoneOk(officer.safetyOfficerPhone))
+      return window.alert("เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลักเท่านั้น");
 
-    const missingFile = STD_ROWS.find(({ k, fileK }) => standard[k] && !files[fileK]);
+    const missingFile = STD_ROWS.find(({ k, fileK }) => standard[k] && !files[fileK] && !fileNames[k]);
     if (missingFile) {
       return window.alert(`กรุณาแนบไฟล์สำหรับ: ${missingFile.label}`);
     }
@@ -423,20 +452,58 @@ export default function UserMainPage() {
     try {
       setSubmitting(true);
 
-      const formData = new FormData();
-      Object.entries(employee).forEach(([k, v]) => formData.append(k, (v as any)));
-      Object.entries(standard).forEach(([k, v]) => formData.append(k, (v as any)));
-      Object.entries(officer).forEach(([k, v]) => formData.append(k, (v as any)));
-
-      Object.entries(files).forEach(([k, v]) => {
-        if (v instanceof File) formData.append(k, v);
-      });
-
       const method = alreadyEnrolled ? "PATCH" : "POST";
+      let requestBody: any;
+      let contentType: string | undefined;
+
+      if (method === "PATCH" && initialData) {
+        // Compute diff
+        const diff: any = {};
+        let hasFile = false;
+
+        Object.entries(employee).forEach(([k, v]) => {
+          if (v !== initialData.employee[k as keyof EmployeeState]) diff[k] = v;
+        });
+        Object.entries(standard).forEach(([k, v]) => {
+          if (v !== initialData.standard[k as keyof StandardState]) diff[k] = v;
+        });
+        Object.entries(officer).forEach(([k, v]) => {
+          if (v !== initialData.officer[k as keyof SafetyOfficerState]) diff[k] = v;
+        });
+
+        Object.entries(files).forEach(([k, v]) => {
+          if (v instanceof File) {
+            diff[k] = v;
+            hasFile = true;
+          }
+        });
+
+        if (Object.keys(diff).length === 0) {
+          window.alert("ไม่มีการเปลี่ยนแปลงข้อมูลที่ต้องบันทึก");
+          setSubmitting(false);
+          return;
+        }
+
+        const formData = new FormData();
+        Object.entries(diff).forEach(([k, v]) => formData.append(k, v as any));
+        requestBody = formData;
+      } else {
+        // Full POST or no initial data
+        const formData = new FormData();
+        Object.entries(employee).forEach(([k, v]) => formData.append(k, v as any));
+        Object.entries(standard).forEach(([k, v]) => formData.append(k, v as any));
+        Object.entries(officer).forEach(([k, v]) => formData.append(k, v as any));
+        Object.entries(files).forEach(([k, v]) => {
+          if (v instanceof File) formData.append(k, v);
+        });
+        requestBody = formData;
+      }
+
       const res = await fetch("/api/factories/enrolls", {
         method: method,
+        headers: contentType ? { "Content-Type": contentType } : undefined,
         credentials: "include",
-        body: formData,
+        body: requestBody,
       });
 
       if (res.ok) {
@@ -488,25 +555,16 @@ export default function UserMainPage() {
   const [isCreatingCover, setIsCreatingCover] = useState(false);
 
   const handleCreateCover = async () => {
+    if (hasCover) {
+      router.push("/factories/question");
+      return;
+    }
+
     if (!window.confirm("ท่านต้องการสร้างแบบประเมินใช่หรือไม่?")) return;
 
     try {
       setIsCreatingCover(true);
 
-      // 1) ลอง GET ก่อนว่ามีอยู่แล้วหรือยัง
-      const getRes = await fetch("/api/factories/assessments/covers", {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
-
-      if (getRes.status === 200) {
-        // ถ้ามีอยู่แล้วให้ไปหน้าถัดไปเลย
-        router.push("/factories/question");
-        return;
-      }
-
-      // 2) ถ้าไม่สำเร็จ (เช่น 400) ให้ลอง POST เพื่อสร้าง
       const postRes = await fetch("/api/factories/assessments/covers", {
         method: "POST",
         credentials: "include",
@@ -520,7 +578,7 @@ export default function UserMainPage() {
         window.alert("ท่านมีแบบประเมินสำหรับปีนี้อยู่แล้ว");
         router.push("/factories/question");
       } else if (postRes.status === 404) {
-        window.alert("ไม่พอข้อมูลการลงทะเบียน (Enroll not found)");
+        window.alert("ไม่พบข้อมูลการลงทะเบียน (Enroll not found)");
       } else {
         const text = await postRes.text();
         window.alert(`เกิดข้อผิดพลาดในการสร้าง: ${postRes.status} ${text}`);
@@ -564,30 +622,41 @@ export default function UserMainPage() {
               ) : alreadyEnrolled ? (
                 <div className="rounded-2xl bg-white p-6 text-center text-black shadow-sm mt-4 border border-gray-100">
                   <div className="font-semibold mb-2 text-lg">ท่านลงสมัครโครงการเรียบร้อยแล้ว</div>
-                  {/* <div className="text-gray-600 text-sm mb-4">
-                    กรุณากดปุ่มด้านล่างเพื่อสร้างแบบประเมินสำหรับสถานประกอบการของท่าน
-                  </div> */}
-                  {/* <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <button
-                      onClick={handleCreateCover}
-                      disabled={isCreatingCover}
-                      className="bg-[#2E8B57] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#246e45] transition-all shadow-md active:scale-95 disabled:opacity-50"
-                    >
-                      {isCreatingCover ? "กำลังดำเนินการ..." : "กดเพื่อสร้างแบบประเมิน"}
-                    </button>
-                    <button
-                      onClick={handleEditEnrollment}
-                      className="text-[#2E8B57] border-2 border-[#2E8B57] px-8 py-3 rounded-2xl font-bold hover:bg-[#E9F7EF] transition-all active:scale-95"
-                    >
-                      แก้ไขข้อมูลการสมัคร
-                    </button>
-                  </div> */}
-                  {/* <div className="mt-6 pt-4 border-t border-gray-100">
+                  <div className="text-gray-600 text-sm mb-4">
+                    {hasCover
+                      ? "ท่านสามารถเข้าทำแบบประเมินได้เลย"
+                      : "กรุณากดปุ่มด้านล่างเพื่อสร้างแบบประเมินสำหรับสถานประกอบการของท่าน"}
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    {coverStatus === "in_review" ? (
+                      <div className="bg-emerald-100 text-emerald-800 px-10 py-4 rounded-2xl font-bold border-2 border-emerald-200 flex items-center gap-2 text-lg shadow-sm">
+                        <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
+                        ประเมินเรียบร้อยแล้ว
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleCreateCover}
+                          disabled={isCreatingCover}
+                          className="bg-[#2E8B57] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#246e45] transition-all shadow-md active:scale-95 disabled:opacity-50"
+                        >
+                          {isCreatingCover ? "กำลังดำเนินการ..." : (hasCover ? "เข้าทำแบบประเมิน" : "กดเพื่อสร้างแบบประเมิน")}
+                        </button>
+                        <button
+                          onClick={handleEditEnrollment}
+                          className="text-[#2E8B57] border-2 border-[#2E8B57] px-8 py-3 rounded-2xl font-bold hover:bg-[#E9F7EF] transition-all active:scale-95"
+                        >
+                          แก้ไขข้อมูลการสมัคร
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-gray-100">
                     <p className="text-[#2E8B57] font-semibold flex items-center justify-center gap-2">
                       <span className="w-2 h-2 bg-[#2E8B57] rounded-full animate-pulse" />
                       ด้านล่างมีแบบประเมินทั้งหมด 41 ข้อ
                     </p>
-                  </div> */}
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3 items-center">
@@ -744,17 +813,31 @@ export default function UserMainPage() {
                           />
                         </div>
                       )}
-                      {fileUrls[k] && (
+                      {fileNames[k] && (
                         <div className="mt-2 pl-1">
-                          <a
-                            href={fileUrls[k]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-[#2E8B57] font-semibold hover:underline flex items-center gap-1.5 bg-[#E9F7EF] w-fit px-3 py-1.5 rounded-xl border border-[#BFE6D1]"
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileNames[k])}`);
+                                if (!res.ok) throw new Error("Failed to get presigned URL");
+                                const data = await res.json();
+                                const url = data.url || data.presignedUrl || data.presigned_url || data;
+                                if (typeof url === "string" && url.startsWith("http")) {
+                                  window.open(url, "_blank");
+                                } else {
+                                  alert("ไม่สามารถดึงลิงก์ไฟล์ได้ (รูปแบบไม่ถูกต้อง)");
+                                }
+                              } catch (e) {
+                                console.error(e);
+                                alert("เกิดข้อผิดพลาดในการดึงไฟล์");
+                              }
+                            }}
+                            className="text-xs text-[#2E8B57] font-semibold hover:underline flex items-center gap-1.5 bg-[#E9F7EF] w-fit px-3 py-1.5 rounded-xl border border-[#BFE6D1] cursor-pointer"
                           >
                             <FileText size={14} />
                             ดูไฟล์เดิมที่เคยอัปโหลด
-                          </a>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -812,8 +895,15 @@ export default function UserMainPage() {
                   <TextField
                     label="โทรศัพท์"
                     value={officer.safetyOfficerPhone}
-                    onChange={(v) =>
-                      setOfficer((s) => ({ ...s, safetyOfficerPhone: v }))
+                    onChange={(v) => {
+                      const clean = v.replace(/[^\d]/g, "").slice(0, 10);
+                      setOfficer((s) => ({ ...s, safetyOfficerPhone: clean }));
+                    }}
+                    error={
+                      officer.safetyOfficerPhone.trim() &&
+                        !phoneOk(officer.safetyOfficerPhone)
+                        ? "ตัวเลข 10 หลักเท่านั้น"
+                        : ""
                     }
                   />
                   <TextField

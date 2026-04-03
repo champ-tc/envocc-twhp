@@ -43,7 +43,15 @@ function forwardHeaders(
   // Add X-API-Key
   const envApiKey = process.env.TWHP_API_KEY;
   const forwardedApiKey = req.headers.get("x-api-key");
-  const apiKey = envApiKey || forwardedApiKey || "";
+  
+  // Extract from cookie if present
+  let cookieApiKey = "";
+  if (cookie) {
+    const match = cookie.match(/api-key=([^;]+)/);
+    if (match) cookieApiKey = match[1];
+  }
+
+  const apiKey = envApiKey || forwardedApiKey || cookieApiKey || "";
   if (apiKey) h["X-API-Key"] = apiKey;
 
   return h;
@@ -51,7 +59,7 @@ function forwardHeaders(
 
 async function proxy(req: NextRequest, init: RequestInit) {
   const url = targetUrl();
-  console.log(`[PROXY] ${req.method} ${url}`);
+  // console.log(`[PROXY] ${req.method} ${url}`);
   const headersObj = forwardHeaders(req, init.headers);
 
   try {
@@ -62,6 +70,15 @@ async function proxy(req: NextRequest, init: RequestInit) {
     });
 
     const text = await upstream.text();
+    
+    if (!upstream.ok && upstream.status !== 404) {
+      return new NextResponse(text, { status: upstream.status });
+    }
+
+    // ✅ If GET and 404, return empty array to prevent console error
+    if (req.method === "GET" && upstream.status === 404) {
+      return NextResponse.json([], { status: 200 });
+    }
 
     return new NextResponse(text, {
       status: upstream.status,
@@ -72,7 +89,7 @@ async function proxy(req: NextRequest, init: RequestInit) {
       },
     });
   } catch (err) {
-    console.error(`[api/factories/assessments/answers] proxy error:`, err);
+    // console.error(`[api/factories/assessments/answers] proxy error:`, err);
     return NextResponse.json({ message: "Upstream error" }, { status: 502 });
   }
 }

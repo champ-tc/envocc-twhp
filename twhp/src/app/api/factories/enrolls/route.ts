@@ -13,7 +13,10 @@ const ensureApiBase = () => {
   return null;
 };
 
-const targetUrl = () => `${API_BASE_URL}/factories/enrolls`;
+const targetUrl = () => {
+  const base = API_BASE_URL?.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+  return `${base}/factories/enrolls`;
+};
 
 function forwardHeaders(
   req: NextRequest,
@@ -50,77 +53,73 @@ function forwardHeaders(
 }
 
 async function proxy(req: NextRequest, init: RequestInit) {
-  const method = init.method || "GET";
   const url = targetUrl();
   const headersObj = forwardHeaders(req, init.headers);
 
-  const upstream = await fetch(url, {
-    ...init,
-    headers: headersObj,
-    cache: "no-store",
-  });
-
-  const text = await upstream.text();
-
-  if (!upstream.ok) {
-    console.error("[api/factories/enroll][UPSTREAM ERROR]", {
-      status: upstream.status,
-      url: url,
-      response: text?.slice(0, 2000),
+  try {
+    const upstream = await fetch(url, {
+      ...init,
+      headers: headersObj,
+      cache: "no-store",
     });
-  }
 
-  return new NextResponse(text, {
-    status: upstream.status,
-    headers: {
-      "content-type":
-        upstream.headers.get("content-type") ??
-        "application/json; charset=utf-8",
-    },
-  });
+    const text = await upstream.text();
+
+    if (!upstream.ok) {
+      console.error("[api/factories/enrolls][UPSTREAM ERROR]", {
+        status: upstream.status,
+        url: url,
+        response: text?.slice(0, 2000),
+      });
+    }
+
+    return new NextResponse(text, {
+      status: upstream.status,
+      headers: {
+        "content-type":
+          upstream.headers.get("content-type") ??
+          "application/json; charset=utf-8",
+      },
+    });
+  } catch (err) {
+    console.error("[api/factories/enrolls][PROXY ERROR]", err);
+    return NextResponse.json({ message: "Upstream error" }, { status: 502 });
+  }
 }
 
 // ✅ GET
 export async function GET(req: NextRequest) {
   const err = ensureApiBase();
   if (err) return err;
-
-  try {
-    const upstream = await proxy(req, { method: "GET" });
-    return upstream;
-  } catch (e) {
-    console.error("[api/factories/enroll][GET] error:", e);
-    return NextResponse.json(
-      { message: "Upstream request failed" },
-      { status: 502 },
-    );
-  }
+  return await proxy(req, { method: "GET" });
 }
 
-// ✅ POST (ส่งแบบ FormData ก้อนเดียว)
+// ✅ POST (ส่งแบบ FormData ก้อนเดียว หรือ JSON)
 export async function POST(req: NextRequest) {
   const err = ensureApiBase();
   if (err) return err;
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch (e) {
-    return NextResponse.json(
-      { message: "Invalid form data" },
-      { status: 400 },
-    );
-  }
+  const contentType = req.headers.get("content-type") || "";
 
   try {
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      return await proxy(req, {
+        method: "POST",
+        body: formData,
+      });
+    }
+
+    const body = await req.json();
     return await proxy(req, {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   } catch (e) {
-    console.error("[api/factories/enroll][POST] error:", e);
+    console.error("[api/factories/enrolls][POST] error:", e);
     return NextResponse.json(
-      { message: "Upstream request failed" },
+      { message: "Upstream request failed or invalid body" },
       { status: 502 },
     );
   }
@@ -131,25 +130,27 @@ export async function PATCH(req: NextRequest) {
   const err = ensureApiBase();
   if (err) return err;
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch (e) {
-    return NextResponse.json(
-      { message: "Invalid form data" },
-      { status: 400 },
-    );
-  }
+  const contentType = req.headers.get("content-type") || "";
 
   try {
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      return await proxy(req, {
+        method: "PATCH",
+        body: formData,
+      });
+    }
+
+    const body = await req.json();
     return await proxy(req, {
       method: "PATCH",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   } catch (e) {
-    console.error("[api/factories/enroll][PATCH] error:", e);
+    console.error("[api/factories/enrolls][PATCH] error:", e);
     return NextResponse.json(
-      { message: "Upstream request failed" },
+      { message: "Upstream request failed or invalid body" },
       { status: 502 },
     );
   }

@@ -60,13 +60,13 @@ async function proxy(req: NextRequest, init: RequestInit) {
 
   const text = await upstream.text();
 
-  if (!upstream.ok) {
-    console.error("[api/factories/assessments/covers][UPSTREAM ERROR]", {
-      status: upstream.status,
-      url: url,
-      response: text?.slice(0, 2000),
-    });
-  }
+  // if (!upstream.ok) {
+  //   console.error("[api/factories/assessments/covers][UPSTREAM ERROR]", {
+  //     status: upstream.status,
+  //     url: url,
+  //     response: text?.slice(0, 2000),
+  //   });
+  // }
 
   return new NextResponse(text, {
     status: upstream.status,
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
   try {
     return await proxy(req, { method: "GET" });
   } catch (e) {
-    console.error("[api/factories/assessments/covers][GET] error:", e);
+    // console.error("[api/factories/assessments/covers][GET] error:", e);
     return NextResponse.json(
       { message: "Upstream request failed" },
       { status: 502 },
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
     });
   } catch (e) {
-    console.error("[api/factories/assessments/covers][POST] error:", e);
+    // console.error("[api/factories/assessments/covers][POST] error:", e);
     return NextResponse.json(
       { message: "Upstream request failed" },
       { status: 502 },

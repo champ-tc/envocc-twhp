@@ -11,11 +11,12 @@ interface ApiQuestion {
     id: number;
     category: string;
     questionText: string;
-    standard: string;
+    standard: any;
     choice1: string;
     choice2: string;
     choice3?: string;
     choiceNA?: string | null;
+    special?: string;
 }
 
 interface Question {
@@ -25,8 +26,10 @@ interface Question {
     "3": string;
     type: string;
     no: string;
+    id: string; // Real backend ID
     question: string;
     "N/A": string;
+    special?: string;
 }
 
 interface QuestionPageClientProps {
@@ -38,30 +41,49 @@ type AuthResponse = {
     user: NormalizedUser;
 };
 
+const SPECIAL_QUESTIONS = ["14", "21", "32", "37"];
+
 export default function QuestionPageClient({ }: QuestionPageClientProps) {
     const router = useRouter();
     const [user, setUser] = useState<NormalizedUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isFetchingData, setIsFetchingData] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);
-    const [initialAnswers, setInitialAnswers] = useState<Record<string, number>>({});
+    const [fetchedData, setFetchedData] = useState<{ answers: Record<string, number>, files: Record<string, Record<number, {name: string, path: string}[]>> }>({ answers: {}, files: {} });
     const [showInstructions, setShowInstructions] = useState(true);
 
     useEffect(() => {
         const checkAuth = async () => {
             try {
                 const res = await fetch("/api/auth/authentication", { credentials: "include" });
-                if (!res.ok) throw new Error(await res.text());
+                
+                // Handle unauthorized/expired session gracefully
+                if (res.status === 401 || res.status === 403) {
+                    router.push("/");
+                    return;
+                }
+                
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error("Auth error:", errorText);
+                    router.push("/");
+                    return;
+                }
+                
                 const data = (await res.json()) as AuthResponse;
                 
-                if (!data?.isLoggedIn || !data.user) throw new Error("Unauthorized");
+                if (!data?.isLoggedIn || !data.user) {
+                    router.push("/");
+                    return;
+                }
+                
                 if (data.user.role !== "Factory") {
                     router.push("/admins/dashboard");
                     return;
                 }
                 setUser(data.user);
             } catch (err) {
-                console.error(err);
+                console.error("Authentication check failed:", err);
                 router.push("/");
             } finally {
                 setIsLoading(false);
@@ -78,11 +100,30 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                 // Fetch Questions
                 const qRes = await fetch("/api/factories/assessments/questions", { credentials: "include" });
                 const apiQuestions = (await qRes.json()) as ApiQuestion[];
+                console.log("[DEBUG] All apiQuestions IDs:", apiQuestions.map(q => q.id));
 
                 // Transform API questions to UI format
-                const transformed: Question[] = apiQuestions.map(q => {
-                    const noStr = q.id.toString();
+                const transformed: Question[] = (Array.isArray(apiQuestions) ? apiQuestions : []).map((q, index) => {
+                    const noStr = q.id === -2147483648 ? (index + 1).toString() : q.id.toString();
                     
+                    let starVal = "";
+                    const s = q.standard;
+                    const sp = q.special;
+                    
+                    const getStars = (v: any): string => {
+                        if (v === 1 || v === "1" || v === "*") return "*";
+                        if (v === 2 || v === "2" || v === "**") return "**";
+                        if (v === 3 || v === "3" || v === "***") return "***";
+                        if (Array.isArray(v)) {
+                            if (v.includes(1) || v.includes("1") || v.includes("*")) return "*";
+                            if (v.includes(2) || v.includes("2") || v.includes("**")) return "**";
+                            if (v.includes(3) || v.includes("3") || v.includes("***")) return "***";
+                        }
+                        return "";
+                    };
+
+                    starVal = getStars(s) || getStars(sp);
+
                     return {
                         "0": "ไม่มีการดำเนินการ",
                         "1": q.choice1,
@@ -90,8 +131,11 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                         "3": q.choice3 || "-",
                         type: q.category,
                         no: noStr,
+                        id: noStr, // Use noStr as the stable UI ID to match answers.questionId
+                        originalId: q.id, // Keep for debugging
                         question: q.questionText,
-                        "N/A": q.choiceNA || "-"
+                        "N/A": q.choiceNA || "-",
+                        special: starVal
                     };
                 });
                 setQuestions(transformed);
@@ -102,20 +146,60 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                     if (aRes.ok) {
                         const answersData = await aRes.json();
                         const ansMap: Record<string, number> = {};
+                        const filesMap: Record<string, Record<number, { name: string, path: string }[]>> = {};
+
                         if (Array.isArray(answersData)) {
                             answersData.forEach((a: any) => {
-                                if (a.questionId !== undefined) {
-                                    ansMap[a.questionId.toString()] = Number(a.score);
+                                // Match by original ID
+                                const qId = a.questionId !== undefined ? a.questionId.toString() : "";
+                                if (qId) {
+                                    // 1. Map Scores
+                                    const val = a.selectedChoice !== undefined ? a.selectedChoice : a.score;
+                                    if (val === "n/a") {
+                                        ansMap[qId] = -1;
+                                    } else {
+                                        ansMap[qId] = Number(val);
+                                    }
+
+                                    // 2. Map Files (Scan for fileUrlX_Y)
+                                    const qFiles: Record<number, { name: string, path: string }[]> = {};
+                                    Object.entries(a).forEach(([key, value]) => {
+                                        if (key.startsWith("fileUrl") && value && typeof value === "string") {
+                                            // Extract level/index from fileUrl1_1
+                                            const sub = key.replace("fileUrl", ""); // "1_1"
+                                            const parts = sub.split("_");
+                                            if (parts.length >= 1) {
+                                                const levelString = parts[0];
+                                                const level = parseInt(levelString);
+                                                if (!isNaN(level)) {
+                                                    // Map special questions (***) to unified level 0 for UI, 
+                                                    // regardless of which level index (1, 2, 3) the backend used.
+                                                    const targetLevel = SPECIAL_QUESTIONS.includes(qId) ? 0 : level;
+                                                    
+                                                    if (!qFiles[targetLevel]) qFiles[targetLevel] = [];
+                                                    // Extract filename from path
+                                                    const fileName = value.split("/").pop() || "เอกสารแนบ";
+                                                    qFiles[targetLevel].push({ name: fileName, path: value });
+                                                }
+                                            }
+                                        }
+                                    });
+                                    if (Object.keys(qFiles).length > 0) {
+                                        filesMap[qId] = qFiles;
+                                    }
                                 }
                             });
                         }
-                        setInitialAnswers(ansMap);
+                        
+                        console.log("[DEBUG] Final filesMap parsed:", JSON.stringify(filesMap, null, 2));
+                        
+                        setFetchedData({ answers: ansMap, files: filesMap });
                     }
                 } catch (e) {
                     console.error("Failed to fetch initial answers:", e);
                 }
             } catch (err) {
-                // silenty handle or use a toast
+                console.error("Fetch Data Error:", err);
             } finally {
                 setIsFetchingData(false);
             }
@@ -227,7 +311,8 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
 
                         <QuestionForm 
                             groupedQuestions={sortedGroupedQuestions} 
-                            initialAnswers={initialAnswers}
+                            initialAnswers={fetchedData.answers}
+                            initialFiles={fetchedData.files}
                         />
                     </div>
                 </main>

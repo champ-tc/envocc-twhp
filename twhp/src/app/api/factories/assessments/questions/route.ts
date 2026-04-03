@@ -51,7 +51,6 @@ function forwardHeaders(
 
 async function proxy(req: NextRequest, init: RequestInit) {
   const url = targetUrl();
-  console.log(`[PROXY] ${req.method} ${url}`);
   const headersObj = forwardHeaders(req, init.headers);
 
   try {
@@ -82,7 +81,5 @@ export async function GET(req: NextRequest) {
   const err = ensureApiBase();
   if (err) return err;
   const url = targetUrl();
-  console.log(`[DEBUG] API_BASE_URL: ${API_BASE_URL}`);
-  console.log(`[DEBUG] Final URL: ${url}`);
   return await proxy(req, { method: "GET" });
 }

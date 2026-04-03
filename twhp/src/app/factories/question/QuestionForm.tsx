@@ -11,13 +11,17 @@ interface Question {
     "3": string;
     type: string;
     no: string;
+    id: string; // Original ID
     question: string;
     "N/A": string;
+    special?: string;
+    originalId?: number; // Added for debugging
 }
 
 interface QuestionFormProps {
     groupedQuestions: Record<string, Question[]>;
     initialAnswers?: Record<string, number>;
+    initialFiles?: Record<string, Record<number, { name: string, path: string }[]>>;
 }
 
 
@@ -25,23 +29,51 @@ type FilesState = Record<string, Record<number, File[]>>;
 
 const SPECIAL_QUESTIONS = ["14", "21", "32", "37"];
 
+const CATEGORY_NAMES: Record<string, string> = {
+    "Collaborate": "หมวด 1 การสนับสนุนขององค์กร การมีส่วนร่วมของผู้ปฏิบัติงาน การใส่ใจต่อสุขภาพและสิ่งแวดล้อมระหว่างองค์กรและชุมชน",
+    "Disease": "หมวดที่ 2 ปลอดโรค",
+    "Safety": "หมวดที่ 3 ปลอดภัย",
+    "Mental": "หมวดที่ 4 กายใจเป็นสุข",
+    "Outcome": "การวัดผลลัพธ์การดำเนินงาน"
+};
 
-export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: QuestionFormProps) {
+
+export default function QuestionForm({ groupedQuestions, initialAnswers = {}, initialFiles = {} }: QuestionFormProps) {
     const router = useRouter();
     // Store answers as { questionNo: score }
     const [answers, setAnswers] = useState<Record<string, number>>(initialAnswers);
     // Files: { [qNo]: { [level]: File[] } }
     const [files, setFiles] = useState<FilesState>({});
+    // State to track ALL existing files (initial + newly saved) for UI display
+    const [localExistingFiles, setLocalExistingFiles] = useState<Record<string, Record<number, { name: string, path: string }[]>>>(initialFiles || {});
 
     const [savedQuestionIds, setSavedQuestionIds] = useState<string[]>(Object.keys(initialAnswers));
 
-    // Update state when initialAnswers changes
+    const hasInitialSyncRef = useRef(false);
+
+    // Update state when initialAnswers or initialFiles changes
     React.useEffect(() => {
-        if (Object.keys(initialAnswers).length > 0) {
-            setAnswers(prev => ({ ...prev, ...initialAnswers }));
-            setSavedQuestionIds(prev => Array.from(new Set([...prev, ...Object.keys(initialAnswers)])));
+        if (initialAnswers && Object.keys(initialAnswers).length > 0) {
+            setAnswers(prev => {
+                // Check if we already have these keys to avoid redundant updates
+                const alreadyHasKeys = Object.keys(initialAnswers).every(k => prev[k] !== undefined);
+                if (alreadyHasKeys && Object.keys(prev).length >= Object.keys(initialAnswers).length) return prev;
+                return { ...prev, ...initialAnswers };
+            });
+            setSavedQuestionIds(prev => {
+                const newIds = Array.from(new Set([...prev, ...Object.keys(initialAnswers)]));
+                if (newIds.length === prev.length) return prev;
+                return newIds;
+            });
         }
     }, [initialAnswers]);
+
+    React.useEffect(() => {
+        if (initialFiles && Object.keys(initialFiles).length > 0) {
+            setLocalExistingFiles(prev => ({ ...prev, ...initialFiles }));
+        }
+    }, [initialFiles]);
+
     const [submitting, setSubmitting] = useState(false);
     const [errorIds, setErrorIds] = useState<string[]>([]);
 
@@ -56,28 +88,29 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
     const progress = savedQuestionIds.length;
     const percentage = totalQuestions > 0 ? Math.round((progress / totalQuestions) * 100) : 0;
 
-    const handleScoreChange = (questionNo: string, score: number) => {
+    const handleScoreChange = (id: string, score: number) => {
         setAnswers(prev => ({
             ...prev,
-            [questionNo]: score
+            [id]: score
         }));
         // Remove from saved if modified
-        if (savedQuestionIds.includes(questionNo)) {
-            setSavedQuestionIds(prev => prev.filter(id => id !== questionNo));
+        if (savedQuestionIds.includes(id)) {
+            setSavedQuestionIds(prev => prev.filter(item => item !== id));
         }
         // Clear error for this question if it exists
-        if (errorIds.includes(questionNo)) {
-            setErrorIds(prev => prev.filter(id => id !== questionNo));
+        if (errorIds.includes(id)) {
+            setErrorIds(prev => prev.filter(item => item !== id));
         }
     };
 
-    const handleFileChange = (questionNo: string, level: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (id: string, level: number, e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
             setFiles(prev => {
-                const existingForLevel = prev[questionNo]?.[level] || [];
+                const existingForLevel = prev[id]?.[level] || [];
                 // Special questions allow 5 files total (level 0), others 3 per level
-                const isSpecial = SPECIAL_QUESTIONS.includes(questionNo);
+                const q = Object.values(groupedQuestions).flat().find(item => item.id === id);
+                const isSpecial = q ? SPECIAL_QUESTIONS.includes(q.no) : false;
                 const maxFiles = isSpecial ? 5 : 3;
 
                 const remainingQuota = maxFiles - existingForLevel.length;
@@ -89,57 +122,58 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
 
                 return {
                     ...prev,
-                    [questionNo]: {
-                        ...(prev[questionNo] || {}),
+                    [id]: {
+                        ...(prev[id] || {}),
                         [level]: updatedLevelFiles
                     }
                 };
             });
             // Remove from saved if modified
-            if (savedQuestionIds.includes(questionNo)) {
-                setSavedQuestionIds(prev => prev.filter(id => id !== questionNo));
+            if (savedQuestionIds.includes(id)) {
+                setSavedQuestionIds(prev => prev.filter(item => item !== id));
             }
         }
         // Reset input
         if (e.target) e.target.value = '';
     };
 
-    const removeFile = (questionNo: string, level: number, index: number) => {
+    const removeFile = (id: string, level: number, index: number) => {
         setFiles(prev => {
-            const qFiles = prev[questionNo] || {};
+            const qFiles = prev[id] || {};
             const levelFiles = qFiles[level] || [];
             const updatedLevelFiles = levelFiles.filter((_, i) => i !== index);
 
             return {
                 ...prev,
-                [questionNo]: {
+                [id]: {
                     ...qFiles,
                     [level]: updatedLevelFiles
                 }
             };
         });
         // Remove from saved if modified
-        if (savedQuestionIds.includes(questionNo)) {
-            setSavedQuestionIds(prev => prev.filter(id => id !== questionNo));
+        if (savedQuestionIds.includes(id)) {
+            setSavedQuestionIds(prev => prev.filter(item => item !== id));
         }
     };
 
-    const validateQuestion = (qNo: string): boolean => {
-        const score = answers[qNo];
+    const validateQuestion = (id: string, qNo: string): boolean => {
+        const score = answers[id];
         if (score === undefined) return false;
         if (score <= 0) return true; // 0 or -1 (N/A) -> Valid by default
 
-        const qFiles = files[qNo] || {};
+        const qFiles = files[id] || {};
+        const qExisting = localExistingFiles[id] || {};
 
         if (SPECIAL_QUESTIONS.includes(qNo)) {
-            // Check unified Level 0
-            if (!qFiles[0] || qFiles[0].length === 0) {
-                return false;
-            }
+            // Check unified Level 0 - sum of new and existing
+            const hasFiles = (qFiles[0]?.length || 0) + (qExisting[0]?.length || 0) > 0;
+            if (!hasFiles) return false;
         } else {
-            // Check required levels
+            // Check required levels 1..score
             for (let level = 1; level <= score; level++) {
-                if (!qFiles[level] || qFiles[level].length === 0) {
+                const hasLevelFiles = (qFiles[level]?.length || 0) + (qExisting[level]?.length || 0) > 0;
+                if (!hasLevelFiles) {
                     return false; // Missing file for this required level
                 }
             }
@@ -147,27 +181,72 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
         return true;
     };
 
-    const handleSaveQuestion = async (qNo: string) => {
-        if (!validateQuestion(qNo)) {
+    const handleViewFile = async (fileName: string) => {
+        if (!fileName) {
+            alert("ไฟล์นี้เพิ่งถูกบันทึก กรุณารีเฟรชหน้าจอเพื่อรับลิงก์สำหรับเปิดดู");
+            return;
+        }
+        try {
+            const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`, { credentials: "include" });
+            if (!res.ok) throw new Error("Failed to get file URL");
+            const data = await res.json();
+            if (data.url) {
+                window.open(data.url, '_blank');
+            } else {
+                throw new Error("No URL returned from server");
+            }
+        } catch (err: any) {
+            console.error("View file error:", err);
+            alert(`ไม่สามารถเปิดไฟล์ได้: ${err.message}`);
+        }
+    };
+
+    const handleSaveQuestion = async (id: string, qNo: string) => {
+        if (!validateQuestion(id, qNo)) {
             alert('กรุณาตอบคำถามและแนบไฟล์ให้ครบถ้วนทุกระดับคะแนนก่อนบันทึก');
-            if (!errorIds.includes(qNo)) setErrorIds(prev => [...prev, qNo]);
+            if (!errorIds.includes(id)) setErrorIds(prev => [...prev, id]);
             return;
         }
 
-        const score = answers[qNo];
-        const questionFiles = files[qNo]?.[score] || [];
+        const score = answers[id];
+        const initialScore = initialAnswers[id];
+        const qFilesForSave = files[id] || {};
+
+        const isAlreadySaved = initialAnswers[id] !== undefined || savedQuestionIds.includes(id);
+        const method = isAlreadySaved ? "PATCH" : "POST";
+
+        // Detect Changes for PATCH optimizer
+        const scoreChanged = score !== initialScore;
+        const hasNewFiles = Object.values(qFilesForSave).some(arr => arr.length > 0);
+
+        // If it’s a PATCH and nothing changed, skip API call
+        if (method === "PATCH" && !scoreChanged && !hasNewFiles) {
+            alert("บันทึกเรียบร้อย (ไม่มีการเปลี่ยนแปลง)");
+            return;
+        }
 
         try {
             const formData = new FormData();
-            formData.append("questionId", qNo);
-            formData.append("score", score.toString());
-            
-            questionFiles.forEach((file) => {
-                formData.append("files", file);
+            formData.append("questionId", id);
+
+            // Only send score if it's POST (new) or if it CHANGED
+            if (method === "POST" || scoreChanged) {
+                formData.append("selectedChoice", score === -1 ? "n/a" : score.toString());
+            }
+
+            // Append files with keys: file_{level}_{index}
+            Object.entries(qFilesForSave).forEach(([levelStr, levelFiles]) => {
+                const level = parseInt(levelStr);
+                // For special questions (unified level 0), map to the SELECTION score (e.g., choice 3 -> file_3_1)
+                const isSpecial = SPECIAL_QUESTIONS.includes(qNo);
+                const effectiveLevel = (isSpecial && level === 0) ? score :
+                    (level === 0) ? 1 : level;
+
+                levelFiles.forEach((file, idx) => {
+                    formData.append(`file_${effectiveLevel}_${idx + 1}`, file);
+                });
             });
 
-            const isAlreadySaved = initialAnswers[qNo] !== undefined || savedQuestionIds.includes(qNo);
-            const method = isAlreadySaved ? "PATCH" : "POST";
             const res = await fetch("/api/factories/assessments/answers", {
                 method: method,
                 body: formData,
@@ -179,49 +258,90 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                 throw new Error(errorData.message || "Failed to save answer");
             }
 
-            // Success Save
-            if (!savedQuestionIds.includes(qNo)) {
-                setSavedQuestionIds(prev => [...prev, qNo]);
+            // --- Success Save ---
+
+            // 1. Mark as saved
+            if (!savedQuestionIds.includes(id)) {
+                setSavedQuestionIds(prev => [...prev, id]);
             }
-            // Clear error
-            setErrorIds(prev => prev.filter(id => id !== qNo));
-            
-            // Optional: Provide small feedback? UI already shows checkmark
+
+            // 2. Move NEW files to LOCAL EXISTING FILES for immediate UI persistence
+            setLocalExistingFiles(prev => {
+                const currentQFiles = { ...(prev[id] || {}) };
+                Object.entries(qFilesForSave).forEach(([lStr, arr]) => {
+                    const l = parseInt(lStr);
+                    if (!currentQFiles[l]) currentQFiles[l] = [];
+                    arr.forEach(file => {
+                        currentQFiles[l].push({ name: file.name, path: "" });
+                    });
+                });
+                return { ...prev, [id]: currentQFiles };
+            });
+
+            // 3. Clear the NEW FILES state for this question
+            setFiles(prev => {
+                const newState = { ...prev };
+                delete newState[id];
+                return newState;
+            });
+
+            // 4. Clear error
+            setErrorIds(prev => prev.filter(item => item !== id));
+
+            alert("บันทึกเบื้องต้นสำเร็จ");
         } catch (err: any) {
             console.error("Save error:", err);
             alert(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
         }
     };
 
-    const handleFinalSubmit = () => {
-        setSubmitting(true);
-
+    const handleFinalSubmit = async () => {
         // 1. Check if all questions are saved
         if (savedQuestionIds.length !== totalQuestions) {
             const missingCount = totalQuestions - savedQuestionIds.length;
-            alert(`กรุณาบันทึกข้อมูลให้ครบทุกข้อ (เหลือ ${missingCount} ข้อ)`);
-            setSubmitting(false);
-
+            alert(`กรุณาบันทึกข้อมูลให้ครบทุกข้อก่อนส่ง (เหลือ ${missingCount} ข้อ)`);
+            
             // Find first unsaved
-            const allQIds = Object.values(groupedQuestions).flatMap(g => g.map(q => q.no));
-            const firstUnsaved = allQIds.find(id => !savedQuestionIds.includes(id));
-            if (firstUnsaved) {
-                document.getElementById(`question-${firstUnsaved}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const allQuestionsFlat = Object.values(groupedQuestions).flat();
+            const firstUnsavedId = allQuestionsFlat.find(q => !savedQuestionIds.includes(q.id))?.id;
+            if (firstUnsavedId) {
+                document.getElementById(`question-${firstUnsavedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
             return;
         }
 
-        // Success
-        setTimeout(() => {
+        if (!confirm("เมื่อยืนยันการส่งแล้ว จะไม่สามารถแก้ไขข้อมูลได้อีก คุณแน่ใจหรือไม่ว่าต้องการส่งข้อมูล?")) {
+            return;
+        }
+
+        setSubmitting(true);
+
+        try {
+            const res = await fetch("/api/factories/assessments/submission", {
+                method: "POST",
+                credentials: "include"
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ error: "Submission failed" }));
+                throw new Error(errorData.details?.message || errorData.error || "Failed to submit assessment");
+            }
+
+            // Success
+            alert('ประเมินเสร็จสิ้นแล้ว');
+            
+            // Cleanup local storage if used
+            localStorage.removeItem('twhp_answers');
+            localStorage.removeItem('twhp_grouped_questions');
+
+            // Redirect to assessment list or dashboard
+            router.push('/factories/assess');
+        } catch (err: any) {
+            console.error("Submission error:", err);
+            alert(`เกิดข้อผิดพลาดในการส่งข้อมูล: ${err.message}`);
+        } finally {
             setSubmitting(false);
-
-            // Save to localStorage
-            localStorage.setItem('twhp_answers', JSON.stringify(answers));
-            localStorage.setItem('twhp_grouped_questions', JSON.stringify(groupedQuestions));
-
-            alert('ยืนยันการส่งข้อมูลสำเร็จ! (Mockup)');
-            router.push('/factories/summary');
-        }, 500);
+        }
     };
 
     return (
@@ -243,15 +363,18 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
             {Object.entries(groupedQuestions).map(([type, items]) => (
                 <section key={type} className="space-y-6">
                     <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border-l-4 border-emerald-500 shadow-sm">
-                        <h2 className="text-lg md:text-xl font-bold text-emerald-900">{type}</h2>
+                        <h2 className="text-lg md:text-xl font-bold text-emerald-900">
+                            {CATEGORY_NAMES[type] || type}
+                        </h2>
                     </div>
 
                     <div className="grid gap-8">
                         {items.map((q, index) => {
-                            const currentScore = answers[q.no];
-                            const qFiles = files[q.no] || {};
-                            const hasError = errorIds.includes(q.no);
-                            const isSaved = savedQuestionIds.includes(q.no);
+                            const currentScore = answers[q.id];
+                            const qFiles = files[q.id] || {};
+                            const qExistingFiles = localExistingFiles[q.id] || {};
+                            const hasError = errorIds.includes(q.id);
+                            const isSaved = savedQuestionIds.includes(q.id);
 
                             // Only needed if score > 0
                             const showUpload = currentScore !== undefined && currentScore > 0;
@@ -261,13 +384,18 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                             if (showUpload) {
                                 if (isSpecial) {
                                     // Check unified level 0
-                                    if (!qFiles[0] || qFiles[0].length === 0) {
-                                        // We can use 0 to indicate missing global evidence
+                                    const hasNewFiles = qFiles[0] && qFiles[0].length > 0;
+                                    const hasExistingFiles = qExistingFiles[0] && qExistingFiles[0].length > 0;
+
+                                    if (!hasNewFiles && !hasExistingFiles) {
                                         missingLevels.push(0);
                                     }
                                 } else {
                                     for (let i = 1; i <= currentScore; i++) {
-                                        if (!qFiles[i] || qFiles[i].length === 0) {
+                                        const hasNewFiles = qFiles[i] && qFiles[i].length > 0;
+                                        const hasExistingFiles = qExistingFiles[i] && qExistingFiles[i].length > 0;
+
+                                        if (!hasNewFiles && !hasExistingFiles) {
                                             missingLevels.push(i);
                                         }
                                     }
@@ -277,8 +405,8 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
 
                             return (
                                 <div
-                                    key={index}
-                                    id={`question-${q.no}`}
+                                    key={q.id}
+                                    id={`question-${q.id}`}
                                     className={`
                     relative p-6 rounded-2xl border-2 transition-all duration-300 bg-white shadow-sm
                     ${hasError ? 'border-red-400 ring-4 ring-red-50' : isSaved ? 'border-green-400 ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200'}
@@ -287,10 +415,18 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                                     {/* Badge & Question */}
                                     <div className="flex gap-4 mb-6">
                                         <div className={`
-                      flex-none flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg shadow-inner
+                      flex-none flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg shadow-inner relative
                       ${hasError ? 'bg-red-100 text-red-600' : isSaved ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}
                     `}>
-                                            {isSaved ? <CheckCircle size={24} /> : q.no}
+                                            {q.no}
+                                            {q.special && q.special.trim() !== "" && q.special !== "-2147483648" ? (
+                                                <span className="text-xs ml-0.5 align-top">{q.special}</span>
+                                            ) : null}
+                                            {isSaved && (
+                                                <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
+                                                    <CheckCircle size={14} />
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex-1">
                                             <h3 className="text-lg font-medium text-slate-900 leading-relaxed whitespace-pre-line">
@@ -339,7 +475,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                                         {/* N/A Option */}
                                         {q["N/A"] && q["N/A"] !== "-" && q["N/A"].trim() !== "" && (
                                             <div
-                                                onClick={() => handleScoreChange(q.no, -1)}
+                                                onClick={() => handleScoreChange(q.id, -1)}
                                                 className={`
                                 group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col md:col-span-2 lg:col-span-1
                                 ${currentScore === -1
@@ -399,47 +535,65 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
 
                                                     <div className="border-t border-slate-100 pt-3">
                                                         <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-sm font-semibold text-slate-700">แนบไฟล์หลักฐาน (รวมไม่เกิน 5 ไฟล์)</span>
+                                                            <span className="text-sm font-semibold text-slate-700">แนบไฟล์หลักฐาน (รวมไม่เกิน 3 ไฟล์)</span>
                                                             <div className="flex-none">
-                                                                {(qFiles[0] || []).length < 5 && (
+                                                                {(qFiles[0] || []).length < 3 && (
                                                                     <button
-                                                                        onClick={() => fileInputRefs.current[`${q.no}_0`]?.click()}
+                                                                        onClick={() => fileInputRefs.current[`${q.id}_0`]?.click()}
                                                                         className="text-xs bg-slate-50 border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap"
                                                                     >
-                                                                        + เพิ่มไฟล์ ({(qFiles[0] || []).length}/5)
+                                                                        + เพิ่มไฟล์ ({(qFiles[0] || []).length}/3)
                                                                     </button>
                                                                 )}
                                                                 <input
                                                                     type="file"
                                                                     multiple
                                                                     className="hidden"
-                                                                    ref={el => { fileInputRefs.current[`${q.no}_0`] = el; }}
-                                                                    onChange={(e) => handleFileChange(q.no, 0, e)}
+                                                                    ref={el => { fileInputRefs.current[`${q.id}_0`] = el; }}
+                                                                    onChange={(e) => handleFileChange(q.id, 0, e)}
                                                                 />
                                                             </div>
                                                         </div>
 
                                                         {/* File List for Special Question */}
                                                         <div className="space-y-1.5">
-                                                            {(qFiles[0] || []).length === 0 ? (
+                                                            {/* Existing Files */}
+                                                            {(qExistingFiles[0] || []).map((file, idx) => (
+                                                                <div key={`existing-${idx}`} className="flex items-center justify-between bg-emerald-50 p-1.5 rounded border border-emerald-200 text-xs">
+                                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                                        <FileIcon size={12} className="text-emerald-500 flex-none" />
+                                                                        <span className="truncate text-emerald-700 font-medium max-w-[150px] sm:max-w-xs">ไฟล์ {idx + 1}</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleViewFile(file.path)}
+                                                                        className="text-emerald-600 hover:text-emerald-800 px-2 py-0.5 rounded bg-white border border-emerald-200"
+                                                                    >
+                                                                        เปิดดู
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+
+                                                            {/* New Files */}
+                                                            {(qFiles[0] || []).map((file, idx) => (
+                                                                <div key={`new-${idx}`} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
+                                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                                        <FileIcon size={12} className="text-blue-500 flex-none" />
+                                                                        <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name} (รอส่ง)</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => removeFile(q.id, 0, idx)}
+                                                                        className="text-slate-400 hover:text-red-500 p-0.5"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+
+                                                            {/* Empty Warning */}
+                                                            {(qExistingFiles[0] || []).length === 0 && (qFiles[0] || []).length === 0 && (
                                                                 <div className={`text-xs italic ${isEvidenceMissing ? 'text-red-500' : 'text-slate-400'}`}>
                                                                     * ยังไม่มีไฟล์แนบ (จำเป็น)
                                                                 </div>
-                                                            ) : (
-                                                                (qFiles[0] || []).map((file, idx) => (
-                                                                    <div key={idx} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                                                                        <div className="flex items-center gap-2 overflow-hidden">
-                                                                            <FileIcon size={12} className="text-blue-500 flex-none" />
-                                                                            <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name}</span>
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => removeFile(q.no, 0, idx)}
-                                                                            className="text-slate-400 hover:text-red-500 p-0.5"
-                                                                        >
-                                                                            <X size={14} />
-                                                                        </button>
-                                                                    </div>
-                                                                ))
                                                             )}
                                                         </div>
                                                     </div>
@@ -469,7 +623,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                                                                 <div className="flex-none text-right">
                                                                     {levelFiles.length < 3 && (
                                                                         <button
-                                                                            onClick={() => fileInputRefs.current[`${q.no}_${level}`]?.click()}
+                                                                            onClick={() => fileInputRefs.current[`${q.id}_${level}`]?.click()}
                                                                             className="text-xs bg-slate-50 border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap"
                                                                         >
                                                                             + เพิ่มไฟล์ ({levelFiles.length}/3)
@@ -479,33 +633,51 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                                                                         type="file"
                                                                         multiple
                                                                         className="hidden"
-                                                                        ref={el => { fileInputRefs.current[`${q.no}_${level}`] = el; }}
-                                                                        onChange={(e) => handleFileChange(q.no, level, e)}
+                                                                        ref={el => { fileInputRefs.current[`${q.id}_${level}`] = el; }}
+                                                                        onChange={(e) => handleFileChange(q.id, level, e)}
                                                                     />
                                                                 </div>
                                                             </div>
 
                                                             {/* File List for this Level */}
                                                             <div className="space-y-1.5">
-                                                                {levelFiles.length === 0 ? (
+                                                                {/* Existing Files */}
+                                                                {(qExistingFiles[level] || []).map((file, idx) => (
+                                                                    <div key={`existing-${level}-${idx}`} className="flex items-center justify-between bg-emerald-50 p-1.5 rounded border border-emerald-200 text-xs">
+                                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                                            <FileIcon size={12} className="text-emerald-500 flex-none" />
+                                                                            <span className="truncate text-emerald-700 font-medium max-w-[150px] sm:max-w-xs">ไฟล์ {idx + 1}</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => handleViewFile(file.path)}
+                                                                            className="text-emerald-600 hover:text-emerald-800 px-2 py-0.5 rounded bg-white border border-emerald-200"
+                                                                        >
+                                                                            เปิดดู
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+
+                                                                {/* New Files */}
+                                                                {levelFiles.map((file, idx) => (
+                                                                    <div key={`new-${level}-${idx}`} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
+                                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                                            <FileIcon size={12} className="text-blue-500 flex-none" />
+                                                                            <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name} (รอส่ง)</span>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => removeFile(q.id, level, idx)}
+                                                                            className="text-slate-400 hover:text-red-500 p-0.5"
+                                                                        >
+                                                                            <X size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+
+                                                                {/* Empty Warning */}
+                                                                {(qExistingFiles[level] || []).length === 0 && levelFiles.length === 0 && (
                                                                     <div className={`text-xs italic ${levelMissing ? 'text-red-500' : 'text-slate-400'}`}>
                                                                         * ยังไม่มีไฟล์แนบ (จำเป็น)
                                                                     </div>
-                                                                ) : (
-                                                                    levelFiles.map((file, idx) => (
-                                                                        <div key={idx} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                                                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                                                <FileIcon size={12} className="text-blue-500 flex-none" />
-                                                                                <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name}</span>
-                                                                            </div>
-                                                                            <button
-                                                                                onClick={() => removeFile(q.no, level, idx)}
-                                                                                className="text-slate-400 hover:text-red-500 p-0.5"
-                                                                            >
-                                                                                <X size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    ))
                                                                 )}
                                                             </div>
                                                         </div>
@@ -518,7 +690,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {} }: 
                                     {/* Per Question Save Button */}
                                     <div className="flex justify-end pt-4 border-t border-slate-100">
                                         <button
-                                            onClick={() => handleSaveQuestion(q.no)}
+                                            onClick={() => handleSaveQuestion(q.id, q.no)}
                                             disabled={isSaved}
                                             className={`
                             flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-all
