@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
-import Navbar from "@/components/Navbar";
+import { useFactoryAuth } from "@/components/FactoryLayout";
 import { CheckCircle, AlertTriangle, AlertOctagon } from "lucide-react";
 import type { NormalizedUser } from "@/lib/auth-utils";
 
@@ -21,30 +19,8 @@ interface SummaryClientProps {
 type AuthResponse = { isLoggedIn: boolean; user: NormalizedUser };
 
 export default function SummaryClient({ questions }: SummaryClientProps) {
-    const router = useRouter();
-    const [user, setUser] = useState<NormalizedUser | null>(null);
-    const [loading, setLoading] = useState(true);
-
+    const { user, isLoading } = useFactoryAuth();
     const [answers, setAnswers] = useState<Record<string, number>>({});
-
-    // Auth Check
-    useEffect(() => {
-        fetch("/api/auth/authentication", { credentials: "include" })
-            .then(async (res) => {
-                if (!res.ok) throw new Error(await res.text());
-                return (await res.json()) as AuthResponse;
-            })
-            .then((data) => {
-                if (!data?.isLoggedIn || !data.user) throw new Error("Unauthorized");
-                if (data.user.role !== "Factory") {
-                    router.push("/admins/dashboard");
-                    return;
-                }
-                setUser(data.user);
-            })
-            .catch(() => router.push("/"))
-            .finally(() => setLoading(false));
-    }, [router]);
 
     // Load Data
     // Load Data
@@ -66,7 +42,7 @@ export default function SummaryClient({ questions }: SummaryClientProps) {
         }
     }, []);
 
-    if (loading) return <div className="p-10 text-center">Loading...</div>;
+    if (isLoading) return <div className="p-10 text-center">Loading...</div>;
     if (!user) return null;
 
     // --- Calculation Logic ---
@@ -149,23 +125,14 @@ export default function SummaryClient({ questions }: SummaryClientProps) {
         return { label: 'ไม่ผ่านเกณฑ์การรับรอง', color: 'text-red-600 bg-red-50 border-red-200' };
     })();
 
+    if (isLoading) return <div className="p-10 text-center">Loading...</div>;
+    if (!user) return null;
+
     return (
-        <div className="flex bg-slate-50 min-h-screen font-sans">
-            <Sidebar userRole={user.role} />
-
-            <div className="flex-1 flex flex-col">
-                <Navbar
-                    title="สรุปผลการประเมินตนเอง"
-                    fullName={user.fullName || user.username}
-                    userRole={user.role}
-                    establishment={user.establishment || "-"}
-                />
-
-                <main className="p-8 flex-1 overflow-y-auto">
-                    <div className="max-w-6xl mx-auto bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                        <h1 className="text-2xl font-bold text-slate-800 mb-6 text-center">
-                            สรุปผลการประเมินตนเองตามเกณฑ์สถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข
-                        </h1>
+        <div className="max-w-6xl mx-auto bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
+            <h1 className="text-2xl font-bold text-slate-800 mb-6 text-center">
+                สรุปผลการประเมินตนเองตามเกณฑ์สถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข
+            </h1>
 
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
@@ -231,9 +198,6 @@ export default function SummaryClient({ questions }: SummaryClientProps) {
                                 </ul>
                             </div>
                         </div>
-                    </div>
-                </main>
-            </div>
         </div>
     );
 }

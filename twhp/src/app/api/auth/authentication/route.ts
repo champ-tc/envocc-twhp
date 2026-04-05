@@ -1,58 +1,46 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { normalizeUserData, type RawAuthResponse } from "@/lib/auth-utils";
+import { logger } from "../../_utils/logger";
+import { forwardHeaders } from "../../_utils/forwardHeaders";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const baseUrl = process.env.API_BASE_URL;
-  const envApiKey = process.env.TWHP_API_KEY;
-  const forwardedApiKey = request.headers.get("x-api-key");
-  const apiKey = envApiKey || forwardedApiKey || "";
 
   if (!baseUrl) {
-    return NextResponse.json({ isLoggedIn: false }, { status: 500 });
+    logger.error("API_BASE_URL not configured for authentication check");
+    return NextResponse.json({ isLoggedIn: false, error: "Configuration Error" }, { status: 500 });
   }
 
   const cookieHeader = request.headers.get("cookie") || "";
   if (!cookieHeader) {
-    return NextResponse.json(
-      {
-        isLoggedIn: false,
-        debugCookies: [],
-      },
-      { status: 401 },
-    );
+    return NextResponse.json({ isLoggedIn: false }, { status: 401 });
   }
 
-  // debug เฉพาะชื่อ cookie (ไม่โชว์ค่า)
-  const debugCookies = cookieHeader
-    .split(";")
-    .map((p) => p.trim().split("=")[0])
-    .filter(Boolean);
+  try {
+    const headersObj = forwardHeaders(request);
 
-  const res = await fetch(`${baseUrl}/authentication`, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      Cookie: cookieHeader,
-      ...(apiKey ? { "X-API-Key": apiKey } : {}),
-    },
-  });
+    const res = await fetch(`${baseUrl}/authentication`, {
+      method: "GET",
+      cache: "no-store",
+      headers: headersObj,
+    });
 
-  if (!res.ok) {
-    return NextResponse.json(
-      {
-        isLoggedIn: false,
-        backendError: await res.text(),
-        debugCookies,
-      },
-      { status: res.status },
-    );
+    if (!res.ok) {
+      if (res.status !== 401) {
+        const errorText = await res.text();
+        logger.error("Backend authentication check failed", { status: res.status, error: errorText.slice(0, 500) });
+      }
+      return NextResponse.json({ isLoggedIn: false }, { status: res.status });
+    }
+
+    const raw = (await res.json()) as RawAuthResponse;
+
+    return NextResponse.json({
+      isLoggedIn: true,
+      user: normalizeUserData(raw),
+    });
+  } catch (error) {
+    logger.error("Authentication Check Error", error);
+    return NextResponse.json({ isLoggedIn: false, error: "Internal Server Error" }, { status: 500 });
   }
-
-  const raw = (await res.json()) as RawAuthResponse;
-
-  return NextResponse.json({
-    isLoggedIn: true,
-    user: normalizeUserData(raw),
-  });
 }

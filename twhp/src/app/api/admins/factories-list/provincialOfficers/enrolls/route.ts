@@ -1,68 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "../../../../_utils/logger";
+import { forwardHeaders } from "../../../../_utils/forwardHeaders";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
-
-function buildUrl(baseUrl: string, path: string, qs: string) {
-    const base = baseUrl.replace(/\/+$/, "");
-    return `${base}${path}${qs ? `?${qs}` : ""}`;
-}
 
 export async function GET(request: NextRequest) {
+    const baseUrl = process.env.API_BASE_URL;
+    if (!baseUrl) {
+        logger.error("API_BASE_URL not configured for admin provincialOfficers enrolls");
+        return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
+    }
+
     try {
-        const baseUrl = process.env.API_BASE_URL;
-        const envApiKey = process.env.TWHP_API_KEY;
-        const forwardedApiKey = request.headers.get("x-api-key");
-
-        const apiKey = envApiKey || forwardedApiKey || "";
-
-        if (!baseUrl) {
-            return NextResponse.json(
-                { success: false, message: "API_BASE_URL not configured" },
-                { status: 500 },
-            );
-        }
-
         const qs = request.nextUrl.searchParams.toString();
-        const cookieHeader = request.headers.get("cookie") || "";
+        const base = baseUrl.replace(/\/+$/, "");
+        const targetUrl = `${base}/provincialOfficers/factories?validated=true${qs ? `&${qs}` : ""}`;
 
-        const targetUrl = buildUrl(
-            baseUrl,
-            "/provincialOfficers/factories?validated=true",
-            qs,
-        );
+        const headersObj = forwardHeaders(request);
 
         const upstream = await fetch(targetUrl, {
             method: "GET",
             cache: "no-store",
-            headers: {
-                Accept: "application/json",
-                ...(apiKey ? { "X-API-Key": apiKey } : {}),
-                ...(cookieHeader ? { Cookie: cookieHeader } : {}),
-            },
+            headers: headersObj,
         });
 
-        const contentType =
-            upstream.headers.get("content-type") ||
-            "application/json; charset=utf-8";
-
+        const contentType = upstream.headers.get("content-type") || "application/json; charset=utf-8";
         const bodyText = await upstream.text();
+
+        if (!upstream.ok) {
+            logger.error(`Admin provincialOfficers enrolls upstream failed`, { status: upstream.status, body: bodyText.slice(0, 500) });
+        }
 
         return new NextResponse(bodyText, {
             status: upstream.status,
-            headers: {
-                "Content-Type": contentType,
-            },
+            headers: { "Content-Type": contentType },
         });
     } catch (error) {
-        console.error(
-            "GET /api/admin/factories-list/provincialOfficers/enrolls error:",
-            error,
-        );
-
-        return NextResponse.json(
-            { success: false, message: "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ" },
-            { status: 500 },
-        );
+        logger.error("Admin provincialOfficers enrolls API error", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

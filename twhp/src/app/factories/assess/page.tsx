@@ -2,8 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
-import Navbar from "@/components/Navbar";
+import { useFactoryAuth } from "@/components/FactoryLayout";
 import { FileText, ExternalLink } from "lucide-react";
 import type { NormalizedUser } from "@/lib/auth-utils";
 
@@ -170,8 +169,7 @@ const prettyEnrollInfo = (s: string) => {
 
 export default function UserMainPage() {
   const router = useRouter();
-  const [user, setUser] = useState<NormalizedUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading } = useFactoryAuth();
 
   const [checkingEnroll, setCheckingEnroll] = useState(true);
   const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
@@ -191,25 +189,6 @@ export default function UserMainPage() {
     standard: StandardState;
     officer: SafetyOfficerState;
   } | null>(null);
-
-  // --- auth ---
-  useEffect(() => {
-    fetch("/api/auth/authentication", { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(await r.text());
-        return (await r.json()) as AuthResponse;
-      })
-      .then((d) => {
-        if (!d?.isLoggedIn || !d.user) throw new Error("Unauthorized");
-        if (d.user.role !== "Factory") return router.push("/admins/dashboard");
-        setUser(d.user);
-      })
-      .catch((err) => {
-        console.error(err);
-        router.push("/");
-      })
-      .finally(() => setIsLoading(false));
-  }, [router]);
 
   const check = async () => {
     if (!user) return;
@@ -595,20 +574,8 @@ export default function UserMainPage() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans text-black">
-      <Sidebar userRole={user.role} />
-
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#F3F6F4]">
-        <Navbar
-          title="สมัครเข้าร่วมโครงการ"
-          fullName={user.fullName}
-          userRole={user.role}
-          establishment={user.establishment}
-          username={user.username}
-        />
-
-        <main className="flex-1 overflow-auto p-8">
-          <div className="bg-[#2E8B57] p-8 rounded-3xl text-white shadow-sm">
+    <>
+      <div className="bg-[#2E8B57] p-8 rounded-3xl text-white shadow-sm">
             <div className="text-xl font-semibold">สวัสดี {user.fullName}</div>
             <div className="mt-2 opacity-95">
               กรุณาดำเนินการสมัครเข้าร่วมโครงการ
@@ -949,9 +916,7 @@ export default function UserMainPage() {
               </div>
             </div>
           )}
-        </main>
-      </div>
-    </div>
+    </>
   );
 }
 

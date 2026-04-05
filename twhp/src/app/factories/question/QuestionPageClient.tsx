@@ -1,11 +1,7 @@
-"use client";
-
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { NormalizedUser } from "@/lib/auth-utils";
-import Navbar from '@/components/Navbar';
-import Sidebar from '@/components/Sidebar';
+import { useFactoryAuth } from "@/components/FactoryLayout";
 import QuestionForm from './QuestionForm';
+import type { NormalizedUser } from "@/lib/auth-utils";
 
 interface ApiQuestion {
     id: number;
@@ -44,53 +40,11 @@ type AuthResponse = {
 const SPECIAL_QUESTIONS = ["14", "21", "32", "37"];
 
 export default function QuestionPageClient({ }: QuestionPageClientProps) {
-    const router = useRouter();
-    const [user, setUser] = useState<NormalizedUser | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const { user, isLoading } = useFactoryAuth();
     const [isFetchingData, setIsFetchingData] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [fetchedData, setFetchedData] = useState<{ answers: Record<string, number>, files: Record<string, Record<number, {name: string, path: string}[]>> }>({ answers: {}, files: {} });
     const [showInstructions, setShowInstructions] = useState(true);
-
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                const res = await fetch("/api/auth/authentication", { credentials: "include" });
-                
-                // Handle unauthorized/expired session gracefully
-                if (res.status === 401 || res.status === 403) {
-                    router.push("/");
-                    return;
-                }
-                
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    console.error("Auth error:", errorText);
-                    router.push("/");
-                    return;
-                }
-                
-                const data = (await res.json()) as AuthResponse;
-                
-                if (!data?.isLoggedIn || !data.user) {
-                    router.push("/");
-                    return;
-                }
-                
-                if (data.user.role !== "Factory") {
-                    router.push("/admins/dashboard");
-                    return;
-                }
-                setUser(data.user);
-            } catch (err) {
-                console.error("Authentication check failed:", err);
-                router.push("/");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        checkAuth();
-    }, [router]);
 
     useEffect(() => {
         if (!user) return;
@@ -238,26 +192,11 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
         }, {} as Record<string, Question[]>);
 
     return (
-        <div className="flex bg-slate-50 min-h-screen font-sans">
-            {/* Sidebar */}
-            <Sidebar userRole={user.role} />
-
-            <div className="flex-1 flex flex-col">
-                {/* Navbar */}
-                <Navbar
-                    title="แบบประเมินสถานประกอบการ"
-                    fullName={user.fullName || user.username}
-                    userRole={user.role}
-                    establishment={user.establishment || "-"}
-                />
-
-                {/* Content */}
-                <main className="p-8 flex-1 overflow-y-auto">
-                    <div className="max-w-5xl mx-auto">
-                        <div className="mb-8">
-                            <h1 className="text-2xl font-bold text-slate-800">แบบประเมินตนเอง</h1>
-                            <p className="text-slate-600 mt-2">กรุณาประเมินตามความเป็นจริง เพื่อการพัฒนาสถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข</p>
-                        </div>
+        <div className="max-w-5xl mx-auto">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-slate-800">แบบประเมินตนเอง</h1>
+                <p className="text-slate-600 mt-2">กรุณาประเมินตามความเป็นจริง เพื่อการพัฒนาสถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข</p>
+            </div>
                         <div className="mb-6 flex justify-end">
                             <button
                                 onClick={() => setShowInstructions(true)}
@@ -314,9 +253,6 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                             initialAnswers={fetchedData.answers}
                             initialFiles={fetchedData.files}
                         />
-                    </div>
-                </main>
-            </div>
         </div>
     );
 }

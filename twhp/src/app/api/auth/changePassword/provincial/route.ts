@@ -1,40 +1,37 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { logger } from "../../../_utils/logger";
+import { forwardHeaders } from "../../../_utils/forwardHeaders";
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   const baseUrl = process.env.API_BASE_URL;
-  if (!baseUrl)
-    return NextResponse.json({ message: "No base url" }, { status: 500 });
-
-  const cookieHeader = request.headers.get("cookie") || "";
+  if (!baseUrl) {
+    logger.error("API_BASE_URL not configured for provincial change password");
+    return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
+  }
 
   try {
     const body = await request.json();
-    console.log(`[PATCH Provincial] Sending body:`, body);
-
-    const envApiKey = process.env.TWHP_API_KEY;
-    const forwardedApiKey = request.headers.get("x-api-key");
-    const apiKey = envApiKey || forwardedApiKey || "";
+    const headersObj = forwardHeaders(request, { "Content-Type": "application/json" });
 
     const res = await fetch(`${baseUrl}/provincialOfficers/password`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Cookie: cookieHeader,
-        ...(apiKey ? { "X-API-Key": apiKey } : {}),
-      },
+      headers: headersObj,
       body: JSON.stringify(body),
     });
 
     const text = await res.text();
-    console.log(`[PATCH Provincial] Response: ${res.status}`, text);
+    const contentType = res.headers.get("content-type") || "application/json";
+
+    if (!res.ok) {
+      logger.error(`Provincial change password failed`, { status: res.status, body: text.slice(0, 500) });
+    }
 
     return new NextResponse(text, {
       status: res.status,
-      headers: {
-        "content-type": res.headers.get("content-type") || "application/json",
-      },
+      headers: { "content-type": contentType },
     });
   } catch (err: any) {
-    return NextResponse.json({ message: err.message }, { status: 500 });
+    logger.error("Provincial change password error", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

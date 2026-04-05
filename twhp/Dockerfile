@@ -1,5 +1,5 @@
 # ---- 1. Install Dependencies ----
-FROM node:20.20.1-alpine3.23 AS deps
+FROM node:20.20.2-alpine3.23 AS deps
 
 RUN apk upgrade --no-cache && \
     apk add --no-cache libc6-compat && \
@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- 2. Build ----
-FROM node:20.20.1-alpine3.23 AS builder
+FROM node:20.20.2-alpine3.23 AS builder
 
 RUN apk upgrade --no-cache && \
     apk info -v zlib
@@ -21,7 +21,7 @@ COPY . .
 RUN npm run build
 
 # ---- 3. Runner ----
-FROM node:20.20.1-alpine3.23 AS runner
+FROM node:20.20.2-alpine3.23 AS runner
 
 RUN apk upgrade --no-cache && \
     apk info -v zlib

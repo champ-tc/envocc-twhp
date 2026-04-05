@@ -1,4 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { logger } from "../../_utils/logger";
+import { forwardHeaders } from "../../_utils/forwardHeaders";
+import { rateLimit } from "../../_utils/rateLimit";
+import { loginSchema } from "../../_schemas";
 
 function mapLoginMessage(raw: unknown): string {
   const msg = typeof raw === "string" ? raw.toLowerCase().trim() : "";
@@ -13,30 +17,34 @@ function mapLoginMessage(raw: unknown): string {
   return "เข้าสู่ระบบไม่สำเร็จ";
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const limitError = rateLimit(ip, { limit: 5, windowMs: 60000 });
+  if (limitError) return limitError;
+
   try {
-    const { username, password } = await request.json();
+    const body = await request.json();
+    const validation = loginSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json({ success: false, message: "ข้อมูลไม่ถูกต้อง" }, { status: 400 });
+    }
 
+    const { username, password } = validation.data;
     const baseUrl = process.env.API_BASE_URL;
-    const envApiKey = process.env.TWHP_API_KEY;
-    const forwardedApiKey = request.headers.get("x-api-key");
-
-    const apiKey = envApiKey || forwardedApiKey || "";
 
     if (!baseUrl) {
+      logger.error("API_BASE_URL not configured for login");
       return NextResponse.json(
-        { success: false, message: "API_BASE_URL not configured" },
+        { success: false, message: "ระบบยังไม่พร้อมใช้งาน" },
         { status: 500 },
       );
     }
 
+    const headersObj = forwardHeaders(request, { "Content-Type": "application/json" });
+
     const apiRes = await fetch(`${baseUrl}/authentication/login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(apiKey ? { "X-API-Key": apiKey } : {}),
-      },
+      headers: headersObj,
       body: JSON.stringify({ username, password }),
       cache: "no-store",
     });
@@ -88,12 +96,18 @@ export async function POST(request: Request) {
           : [];
 
     for (const c of setCookies) {
-      res.headers.append("set-cookie", c);
+      // Append secure cookie attributes if missing
+      let secureCookie = c;
+      if (!secureCookie.toLowerCase().includes("httponly")) secureCookie += "; HttpOnly";
+      if (!secureCookie.toLowerCase().includes("secure")) secureCookie += "; Secure";
+      if (!secureCookie.toLowerCase().includes("samesite")) secureCookie += "; SameSite=Lax";
+      
+      res.headers.append("set-cookie", secureCookie);
     }
 
     return res;
   } catch (e) {
-    console.error("Login Error:", e);
+    logger.error("Login Error", e);
     return NextResponse.json(
       { success: false, message: "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ" },
       { status: 500 },

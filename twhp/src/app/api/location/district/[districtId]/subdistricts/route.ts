@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "../../../../_utils/logger";
+import { forwardHeaders } from "../../../../_utils/forwardHeaders";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 
@@ -6,34 +8,35 @@ type Ctx = { params: Promise<{ districtId: string }> };
 
 export async function GET(req: NextRequest, ctx: Ctx) {
   if (!API_BASE_URL) {
-    return NextResponse.json(
-      { message: "Missing API_BASE_URL" },
-      { status: 500 },
-    );
+    logger.error("API_BASE_URL not configured for location subdistricts");
+    return NextResponse.json({ error: "Configuration Error" }, { status: 500 });
   }
 
-  const { districtId } = await ctx.params;
+  try {
+    const { districtId } = await ctx.params;
+    const headersObj = forwardHeaders(req);
 
-  const envApiKey = process.env.TWHP_API_KEY;
-  const forwardedApiKey = req.headers.get("x-api-key");
-  const apiKey = envApiKey || forwardedApiKey || "";
+    const r = await fetch(
+      `${API_BASE_URL}/location/districts/${encodeURIComponent(districtId)}/subdistricts`,
+      {
+        cache: "no-store",
+        headers: headersObj,
+      }
+    );
 
-  const r = await fetch(
-    `${API_BASE_URL}/location/districts/${encodeURIComponent(districtId)}/subdistricts`,
-    {
-      cache: "no-store",
-      headers: {
-        ...(apiKey ? { "X-API-Key": apiKey } : {}),
-      },
-    },
-  );
+    const text = await r.text();
+    const contentType = r.headers.get("content-type") || "application/json";
 
-  const text = await r.text();
+    if (!r.ok) {
+        logger.error(`Location subdistricts fetch failed for district ${districtId}`, { status: r.status });
+    }
 
-  return new NextResponse(text, {
-    status: r.status,
-    headers: {
-      "content-type": r.headers.get("content-type") || "application/json",
-    },
-  });
+    return new NextResponse(text, {
+      status: r.status,
+      headers: { "content-type": contentType },
+    });
+  } catch (error) {
+    logger.error("Location Subdistricts API Error", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }
