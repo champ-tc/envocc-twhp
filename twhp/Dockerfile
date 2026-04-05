@@ -1,19 +1,17 @@
-# ---- 1. Install Dependencies ----
-FROM node:20.20.2-alpine3.23 AS deps
+FROM node:20-alpine AS deps
 
-RUN apk upgrade --no-cache && \
-    apk add --no-cache libc6-compat && \
-    apk info -v zlib
+RUN apk add --no-cache libc6-compat zlib libcrypto3 libssl3 && \
+    rm -rf /usr/bin/untgz
 
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- 2. Build ----
-FROM node:20.20.2-alpine3.23 AS builder
+FROM node:20-alpine AS builder
 
-RUN apk upgrade --no-cache && \
-    apk info -v zlib
+RUN apk add --no-cache zlib libcrypto3 libssl3 && \
+    rm -rf /usr/bin/untgz
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -21,10 +19,10 @@ COPY . .
 RUN npm run build
 
 # ---- 3. Runner ----
-FROM node:20.20.2-alpine3.23 AS runner
+FROM node:20-alpine AS runner
 
-RUN apk upgrade --no-cache && \
-    apk info -v zlib
+RUN apk add --no-cache zlib libcrypto3 libssl3 && \
+    rm -rf /usr/bin/untgz
 
 WORKDIR /app
 
