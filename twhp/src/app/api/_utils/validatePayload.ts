@@ -10,7 +10,7 @@ export async function validatePayload(req: Request, options: { maxSize?: number;
   }
 
   const contentType = req.headers.get("content-type") || "";
-  if (allowedTypes && allowedTypes.length > 0) {
+  if (contentLength > 0 && allowedTypes && allowedTypes.length > 0) {
     const isAllowed = allowedTypes.some(type => contentType.includes(type));
     if (!isAllowed) {
       return NextResponse.json({ error: "Invalid Content-Type", details: `Allowed: ${allowedTypes.join(", ")}` }, { status: 415 });

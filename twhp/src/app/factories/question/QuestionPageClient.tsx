@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useFactoryAuth } from "@/components/FactoryLayout";
 import QuestionForm from './QuestionForm';
 import type { NormalizedUser } from "@/lib/auth-utils";
@@ -45,8 +45,57 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
     const { user, isLoading } = useFactoryAuth();
     const [isFetchingData, setIsFetchingData] = useState(true);
     const [questions, setQuestions] = useState<Question[]>([]);
-    const [fetchedData, setFetchedData] = useState<{ answers: Record<string, number>, files: Record<string, Record<number, {name: string, path: string}[]>> }>({ answers: {}, files: {} });
+    const [fetchedData, setFetchedData] = useState<{ answers: Record<string, number>, files: Record<string, Record<number, { name: string, path: string }[]>> }>({ answers: {}, files: {} });
     const [showInstructions, setShowInstructions] = useState(true);
+
+    const fetchAnswers = useCallback(async () => {
+        try {
+            const aRes = await fetch("/api/factories/assessments/answers", { credentials: "include" });
+            if (aRes.ok) {
+                const answersData = await aRes.json();
+                const ansMap: Record<string, number> = {};
+                const filesMap: Record<string, Record<number, { name: string, path: string }[]>> = {};
+
+                if (Array.isArray(answersData)) {
+                    answersData.forEach((a: any) => {
+                        const qId = a.questionId !== undefined ? a.questionId.toString() : "";
+                        if (qId) {
+                            const val = a.selectedChoice !== undefined ? a.selectedChoice : a.score;
+                            if (val === "n/a") {
+                                ansMap[qId] = -1;
+                            } else {
+                                ansMap[qId] = Number(val);
+                            }
+
+                            const qFiles: Record<number, { name: string, path: string }[]> = {};
+                            Object.entries(a).forEach(([key, value]) => {
+                                if (key.startsWith("fileUrl") && value && typeof value === "string") {
+                                    const sub = key.replace("fileUrl", "");
+                                    const parts = sub.split("_");
+                                    if (parts.length >= 1) {
+                                        const levelString = parts[0];
+                                        const level = parseInt(levelString);
+                                        if (!isNaN(level)) {
+                                            const targetLevel = SPECIAL_QUESTIONS.includes(qId) ? 0 : level;
+                                            if (!qFiles[targetLevel]) qFiles[targetLevel] = [];
+                                            const fileName = value.split("/").pop() || "เอกสารแนบ";
+                                            qFiles[targetLevel].push({ name: fileName, path: value });
+                                        }
+                                    }
+                                }
+                            });
+                            if (Object.keys(qFiles).length > 0) {
+                                filesMap[qId] = qFiles;
+                            }
+                        }
+                    });
+                }
+                setFetchedData({ answers: ansMap, files: filesMap });
+            }
+        } catch (e) {
+            console.error("Failed to fetch initial answers:", e);
+        }
+    }, []);
 
     useEffect(() => {
         if (!user) return;
@@ -56,16 +105,15 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                 // Fetch Questions
                 const qRes = await fetch("/api/factories/assessments/questions", { credentials: "include" });
                 const apiQuestions = (await qRes.json()) as ApiQuestion[];
-                console.log("[DEBUG] All apiQuestions IDs:", apiQuestions.map(q => q.id));
 
                 // Transform API questions to UI format
                 const transformed: Question[] = (Array.isArray(apiQuestions) ? apiQuestions : []).map((q, index) => {
                     const noStr = q.id === -2147483648 ? (index + 1).toString() : q.id.toString();
-                    
+
                     let starVal = "";
                     const s = q.standard;
                     const sp = q.special;
-                    
+
                     const getStars = (v: any): string => {
                         if (v === 1 || v === "1" || v === "*") return "*";
                         if (v === 2 || v === "2" || v === "**") return "**";
@@ -87,8 +135,8 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                         "3": q.choice3 || "-",
                         type: q.category,
                         no: noStr,
-                        id: noStr, // Use noStr as the stable UI ID to match answers.questionId
-                        originalId: q.id, // Keep for debugging
+                        id: noStr,
+                        originalId: q.id,
                         question: q.questionText,
                         "N/A": q.choiceNA || "-",
                         special: starVal
@@ -96,64 +144,8 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                 });
                 setQuestions(transformed);
 
-                // Fetch Existing Answers
-                try {
-                    const aRes = await fetch("/api/factories/assessments/answers", { credentials: "include" });
-                    if (aRes.ok) {
-                        const answersData = await aRes.json();
-                        const ansMap: Record<string, number> = {};
-                        const filesMap: Record<string, Record<number, { name: string, path: string }[]>> = {};
-
-                        if (Array.isArray(answersData)) {
-                            answersData.forEach((a: any) => {
-                                // Match by original ID
-                                const qId = a.questionId !== undefined ? a.questionId.toString() : "";
-                                if (qId) {
-                                    // 1. Map Scores
-                                    const val = a.selectedChoice !== undefined ? a.selectedChoice : a.score;
-                                    if (val === "n/a") {
-                                        ansMap[qId] = -1;
-                                    } else {
-                                        ansMap[qId] = Number(val);
-                                    }
-
-                                    // 2. Map Files (Scan for fileUrlX_Y)
-                                    const qFiles: Record<number, { name: string, path: string }[]> = {};
-                                    Object.entries(a).forEach(([key, value]) => {
-                                        if (key.startsWith("fileUrl") && value && typeof value === "string") {
-                                            // Extract level/index from fileUrl1_1
-                                            const sub = key.replace("fileUrl", ""); // "1_1"
-                                            const parts = sub.split("_");
-                                            if (parts.length >= 1) {
-                                                const levelString = parts[0];
-                                                const level = parseInt(levelString);
-                                                if (!isNaN(level)) {
-                                                    // Map special questions (***) to unified level 0 for UI, 
-                                                    // regardless of which level index (1, 2, 3) the backend used.
-                                                    const targetLevel = SPECIAL_QUESTIONS.includes(qId) ? 0 : level;
-                                                    
-                                                    if (!qFiles[targetLevel]) qFiles[targetLevel] = [];
-                                                    // Extract filename from path
-                                                    const fileName = value.split("/").pop() || "เอกสารแนบ";
-                                                    qFiles[targetLevel].push({ name: fileName, path: value });
-                                                }
-                                            }
-                                        }
-                                    });
-                                    if (Object.keys(qFiles).length > 0) {
-                                        filesMap[qId] = qFiles;
-                                    }
-                                }
-                            });
-                        }
-                        
-                        console.log("[DEBUG] Final filesMap parsed:", JSON.stringify(filesMap, null, 2));
-                        
-                        setFetchedData({ answers: ansMap, files: filesMap });
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch initial answers:", e);
-                }
+                // Fetch Answers
+                await fetchAnswers();
             } catch (err) {
                 console.error("Fetch Data Error:", err);
             } finally {
@@ -162,7 +154,7 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
         };
 
         fetchData();
-    }, [user]);
+    }, [user, fetchAnswers]);
 
     if (isLoading || (user && isFetchingData)) return <div className="p-10 text-center text-slate-500">Loading...</div>;
     if (!user) return null;
@@ -199,62 +191,63 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                 <h1 className="text-2xl font-bold text-slate-800">แบบประเมินตนเอง</h1>
                 <p className="text-slate-600 mt-2">กรุณาประเมินตามความเป็นจริง เพื่อการพัฒนาสถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข</p>
             </div>
-                        <div className="mb-6 flex justify-end">
-                            <button
-                                onClick={() => setShowInstructions(true)}
-                                className="text-blue-600 hover:text-blue-800 underline text-sm font-medium flex items-center gap-1"
-                            >
-                                <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-xs">?</span>
-                                อ่านคำชี้แจงและเกณฑ์การประเมิน
+            <div className="mb-6 flex justify-end">
+                <button
+                    onClick={() => setShowInstructions(true)}
+                    className="text-blue-600 hover:text-blue-800 underline text-sm font-medium flex items-center gap-1"
+                >
+                    <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-xs">?</span>
+                    อ่านคำชี้แจงและเกณฑ์การประเมิน
+                </button>
+            </div>
+
+            {showInstructions && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="text-xl font-bold text-slate-800">คำชี้แจง</h3>
+                            <button onClick={() => setShowInstructions(false)} className="text-gray-400 hover:text-gray-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         </div>
-
-                        {showInstructions && (
-                            <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm p-4">
-                                <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-                                    <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
-                                        <h3 className="text-xl font-bold text-slate-800">คำชี้แจง</h3>
-                                        <button onClick={() => setShowInstructions(false)} className="text-gray-400 hover:text-gray-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                        </button>
-                                    </div>
-                                    <div className="p-6 overflow-y-auto text-slate-600 space-y-4 text-sm leading-relaxed">
-                                        <p><span className="font-bold text-slate-800">1. การพิจารณาเกณฑ์การประเมิน</span> 1 คะแนน หรือ 2 คะแนน หรือ 3 คะแนน ให้พิจารณาการดำเนินงานตามลำดับขั้นบันได ยกเว้นหัวข้อที่มีสัญลักษณ์ *** หากไม่มีการดำเนินงานให้ประเมิน 0 คะแนน และระบุ NA หากไม่เกี่ยวข้องกับข้อเกณฑ์นั้น</p>
-                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                            <p className="font-bold text-slate-800 mb-2">2. สัญลักษณ์ที่ปรากฎในเกณฑ์</p>
-                                            <ul className="space-y-3">
-                                                <li className="flex gap-3">
-                                                    <span className="flex-none font-black text-blue-600">*</span>
-                                                    <span>หมายถึง หัวข้อที่สถานประกอบการต้องดำเนินการให้ได้ในระดับ 3 คะแนน เท่านั้น จึงจะมีสิทธิ์ได้รับการพิจารณารับรองระดับโล่ทอง ประกอบด้วย เกณฑ์ข้อที่ 6, 9 และ 25</span>
-                                                </li>
-                                                <li className="flex gap-3">
-                                                    <span className="flex-none font-black text-blue-600">**</span>
-                                                    <span>หมายถึง หัวข้อที่สถานประกอบการต้องดำเนินการให้ได้ในระดับ 3 คะแนน เท่านั้น จึงจะมีสิทธิ์ได้รับการพิจารณารับรองระดับโล่ทองต่อเนื่อง ประกอบด้วย เกณฑ์ข้อที่ 7, 38, 39, 40 และ 41</span>
-                                                </li>
-                                                <li className="flex gap-3">
-                                                    <span className="flex-none font-black text-blue-600">***</span>
-                                                    <span>หมายถึง หัวข้อที่สถานประกอบการไม่จำเป็นต้องดำเนินการตามลำดับขั้นบันได ประกอบด้วย เกณฑ์ข้อที่ 14, 21, 32 และ 37</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                                        <button
-                                            onClick={() => setShowInstructions(false)}
-                                            className="px-6 py-2 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 transition-colors"
-                                        >
-                                            รับทราบ
-                                        </button>
-                                    </div>
-                                </div>
+                        <div className="p-6 overflow-y-auto text-slate-600 space-y-4 text-sm leading-relaxed">
+                            <p><span className="font-bold text-slate-800">1. การพิจารณาเกณฑ์การประเมิน</span> 1 คะแนน หรือ 2 คะแนน หรือ 3 คะแนน ให้พิจารณาการดำเนินงานตามลำดับขั้นบันได ยกเว้นหัวข้อที่มีสัญลักษณ์ *** หากไม่มีการดำเนินงานให้ประเมิน 0 คะแนน และระบุ NA หากไม่เกี่ยวข้องกับข้อเกณฑ์นั้น</p>
+                            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                <p className="font-bold text-slate-800 mb-2">2. สัญลักษณ์ที่ปรากฎในเกณฑ์</p>
+                                <ul className="space-y-3">
+                                    <li className="flex gap-3">
+                                        <span className="flex-none font-black text-blue-600">*</span>
+                                        <span>หมายถึง หัวข้อที่สถานประกอบการต้องดำเนินการให้ได้ในระดับ 3 คะแนน เท่านั้น จึงจะมีสิทธิ์ได้รับการพิจารณารับรองระดับโล่ทอง ประกอบด้วย เกณฑ์ข้อที่ 6, 9 และ 25</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="flex-none font-black text-blue-600">**</span>
+                                        <span>หมายถึง หัวข้อที่สถานประกอบการต้องดำเนินการให้ได้ในระดับ 3 คะแนน เท่านั้น จึงจะมีสิทธิ์ได้รับการพิจารณารับรองระดับโล่ทองต่อเนื่อง ประกอบด้วย เกณฑ์ข้อที่ 7, 38, 39, 40 และ 41</span>
+                                    </li>
+                                    <li className="flex gap-3">
+                                        <span className="flex-none font-black text-blue-600">***</span>
+                                        <span>หมายถึง หัวข้อที่สถานประกอบการไม่จำเป็นต้องดำเนินการตามลำดับขั้นบันได ประกอบด้วย เกณฑ์ข้อที่ 14, 21, 32 และ 37</span>
+                                    </li>
+                                </ul>
                             </div>
-                        )}
+                        </div>
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                            <button
+                                onClick={() => setShowInstructions(false)}
+                                className="px-6 py-2 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 transition-colors"
+                            >
+                                รับทราบ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                        <QuestionForm 
-                            groupedQuestions={sortedGroupedQuestions} 
-                            initialAnswers={fetchedData.answers}
-                            initialFiles={fetchedData.files}
-                        />
+            <QuestionForm
+                groupedQuestions={sortedGroupedQuestions}
+                initialAnswers={fetchedData.answers}
+                initialFiles={fetchedData.files}
+                refreshAnswers={fetchAnswers}
+            />
         </div>
     );
 }

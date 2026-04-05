@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFactoryAuth } from "@/components/FactoryLayout";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText, ExternalLink, X, Download, Loader2 } from "lucide-react";
 import type { NormalizedUser } from "@/lib/auth-utils";
 
 type AuthResponse = { isLoggedIn: boolean; user: NormalizedUser };
@@ -184,6 +184,7 @@ export default function UserMainPage() {
   const [fileNames, setFileNames] = useState<Record<string, string>>({});
   const [officer, setOfficer] = useState<SafetyOfficerState>(OFF_INIT);
   const [submitting, setSubmitting] = useState(false);
+  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
   const [initialData, setInitialData] = useState<{
     employee: EmployeeState;
     standard: StandardState;
@@ -546,6 +547,8 @@ export default function UserMainPage() {
 
       const postRes = await fetch("/api/factories/assessments/covers", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
         credentials: "include",
       });
 
@@ -784,21 +787,8 @@ export default function UserMainPage() {
                         <div className="mt-2 pl-1">
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileNames[k])}`);
-                                if (!res.ok) throw new Error("Failed to get presigned URL");
-                                const data = await res.json();
-                                const url = data.url || data.presignedUrl || data.presigned_url || data;
-                                if (typeof url === "string" && url.startsWith("http")) {
-                                  window.open(url, "_blank");
-                                } else {
-                                  alert("ไม่สามารถดึงลิงก์ไฟล์ได้ (รูปแบบไม่ถูกต้อง)");
-                                }
-                              } catch (e) {
-                                console.error(e);
-                                alert("เกิดข้อผิดพลาดในการดึงไฟล์");
-                              }
+                            onClick={() => {
+                              setPreviewFileName(fileNames[k]);
                             }}
                             className="text-xs text-[#2E8B57] font-semibold hover:underline flex items-center gap-1.5 bg-[#E9F7EF] w-fit px-3 py-1.5 rounded-xl border border-[#BFE6D1] cursor-pointer"
                           >
@@ -916,9 +906,137 @@ export default function UserMainPage() {
               </div>
             </div>
           )}
+      {previewFileName && (
+        <FilePreviewModal
+          fileName={previewFileName}
+          onClose={() => setPreviewFileName(null)}
+        />
+      )}
     </>
   );
 }
+
+// --- Preview Modal Component ---
+function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: () => void }) {
+  const [presignedUrl, setPresignedUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    setPresignedUrl(null);
+
+    fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const url = data.url || data.presignedUrl || data.presigned_url;
+        if (typeof url !== "string" || !url.startsWith("http")) {
+          throw new Error("URL ไม่ถูกต้อง");
+        }
+        if (!cancelled) setPresignedUrl(url);
+      })
+      .catch((err) => {
+        if (!cancelled) setError("ไม่สามารถโหลดไฟล์ได้ กรุณาลองใหม่อีกครั้ง");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [fileName]);
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const url = data.url || data.presignedUrl || data.presigned_url;
+      if (typeof url === "string" && url.startsWith("http")) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.target = "_blank";
+        a.click();
+      }
+    } catch {
+      alert("ไม่สามารถดาวน์โหลดไฟล์ได้");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-100 text-[#2E8B57] rounded-xl flex items-center justify-center">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-800">ตัวอย่างไฟล์</h3>
+              <p className="text-xs text-gray-500 font-medium">เอกสารหลักฐาน</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              className="p-2.5 text-gray-500 hover:text-[#2E8B57] hover:bg-green-50 rounded-xl transition-colors"
+              title="ดาวน์โหลดไฟล์"
+            >
+              <Download size={20} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 bg-gray-100 relative min-h-0">
+          {isLoading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white z-20">
+              <Loader2 className="animate-spin text-[#2E8B57]" size={32} />
+              <p className="text-sm font-medium text-gray-600">กำลังโหลดเอกสาร...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white z-20">
+              <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center">
+                <X size={32} />
+              </div>
+              <p className="text-sm font-medium text-gray-700">{error}</p>
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-[#2E8B57] text-white rounded-xl text-sm font-semibold hover:bg-[#257a4a] transition-colors"
+              >
+                ปิด
+              </button>
+            </div>
+          )}
+
+          {presignedUrl && (
+            <iframe
+              key={presignedUrl}
+              src={presignedUrl}
+              className="w-full h-full border-none"
+              title="PDF Preview"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 /* ------- small UI components ------- */
 

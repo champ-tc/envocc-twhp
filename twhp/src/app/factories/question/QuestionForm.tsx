@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, AlertCircle, Save, Upload, X, File as FileIcon, CheckSquare } from 'lucide-react';
+import { CheckCircle, AlertCircle, Save, Upload, X, File as FileIcon, CheckSquare, Download, Loader2 } from 'lucide-react';
 
 interface Question {
     "0": string;
@@ -22,10 +22,12 @@ interface QuestionFormProps {
     groupedQuestions: Record<string, Question[]>;
     initialAnswers?: Record<string, number>;
     initialFiles?: Record<string, Record<number, { name: string, path: string }[]>>;
+    refreshAnswers?: () => Promise<void>;
 }
 
 
-type FilesState = Record<string, Record<number, File[]>>;
+// Files: { [questionId]: { [level]: { [slotIndex]: File } } }
+type FilesState = Record<string, Record<number, Record<number, File>>>;
 
 const SPECIAL_QUESTIONS = ["14", "21", "32", "37"];
 
@@ -38,7 +40,7 @@ const CATEGORY_NAMES: Record<string, string> = {
 };
 
 
-export default function QuestionForm({ groupedQuestions, initialAnswers = {}, initialFiles = {} }: QuestionFormProps) {
+export default function QuestionForm({ groupedQuestions, initialAnswers = {}, initialFiles = {}, refreshAnswers }: QuestionFormProps) {
     const router = useRouter();
     // Store answers as { questionNo: score }
     const [answers, setAnswers] = useState<Record<string, number>>(initialAnswers);
@@ -48,6 +50,8 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
     const [localExistingFiles, setLocalExistingFiles] = useState<Record<string, Record<number, { name: string, path: string }[]>>>(initialFiles || {});
 
     const [savedQuestionIds, setSavedQuestionIds] = useState<string[]>(Object.keys(initialAnswers));
+    const [deletedFileKeys, setDeletedFileKeys] = useState<Record<string, string[]>>({}); // { questionId: ["file_1_1", ...] }
+    const [previewFileName, setPreviewFileName] = useState<string | null>(null);
 
     const hasInitialSyncRef = useRef(false);
 
@@ -69,11 +73,10 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
     }, [initialAnswers]);
 
     React.useEffect(() => {
-        if (initialFiles && Object.keys(initialFiles).length > 0) {
-            setLocalExistingFiles(prev => ({ ...prev, ...initialFiles }));
-        }
+        setLocalExistingFiles(initialFiles || {});
     }, [initialFiles]);
 
+    const [savingId, setSavingId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [errorIds, setErrorIds] = useState<string[]>([]);
 
@@ -103,55 +106,48 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
         }
     };
 
-    const handleFileChange = (id: string, level: number, e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const newFiles = Array.from(e.target.files);
-            setFiles(prev => {
-                const existingForLevel = prev[id]?.[level] || [];
-                // Special questions allow 5 files total (level 0), others 3 per level
-                const q = Object.values(groupedQuestions).flat().find(item => item.id === id);
-                const isSpecial = q ? SPECIAL_QUESTIONS.includes(q.no) : false;
-                const maxFiles = isSpecial ? 5 : 3;
-
-                const remainingQuota = maxFiles - existingForLevel.length;
-
-                if (remainingQuota <= 0) return prev;
-
-                const filesToAdd = newFiles.slice(0, remainingQuota);
-                const updatedLevelFiles = [...existingForLevel, ...filesToAdd];
-
-                return {
-                    ...prev,
-                    [id]: {
-                        ...(prev[id] || {}),
-                        [level]: updatedLevelFiles
+    const handleFileChange = (id: string, level: number, slotIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setFiles(prev => ({
+                ...prev,
+                [id]: {
+                    ...(prev[id] || {}),
+                    [level]: {
+                        ...(prev[id]?.[level] || {}),
+                        [slotIndex]: file
                     }
-                };
-            });
-            // Remove from saved if modified
+                }
+            }));
+
+            // If it was in deleted keys, remove it (it's being replaced)
+            const fieldKey = `file_${level}_${slotIndex + 1}`;
+            setDeletedFileKeys(prev => ({
+                ...prev,
+                [id]: (prev[id] || []).filter(k => k !== fieldKey)
+            }));
+
             if (savedQuestionIds.includes(id)) {
                 setSavedQuestionIds(prev => prev.filter(item => item !== id));
             }
         }
-        // Reset input
         if (e.target) e.target.value = '';
     };
 
-    const removeFile = (id: string, level: number, index: number) => {
+    const removeNewFile = (id: string, level: number, slotIndex: number) => {
         setFiles(prev => {
-            const qFiles = prev[id] || {};
-            const levelFiles = qFiles[level] || [];
-            const updatedLevelFiles = levelFiles.filter((_, i) => i !== index);
+            const qFiles = { ...(prev[id] || {}) };
+            const levelFiles = { ...(qFiles[level] || {}) };
+            delete levelFiles[slotIndex];
 
             return {
                 ...prev,
                 [id]: {
                     ...qFiles,
-                    [level]: updatedLevelFiles
+                    [level]: levelFiles
                 }
             };
         });
-        // Remove from saved if modified
         if (savedQuestionIds.includes(id)) {
             setSavedQuestionIds(prev => prev.filter(item => item !== id));
         }
@@ -164,40 +160,60 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
         const qFiles = files[id] || {};
         const qExisting = localExistingFiles[id] || {};
+        const qDeleted = deletedFileKeys[id] || [];
+
+        const hasFileInSlot = (level: number): boolean => {
+            // Check all 5 possible slots (max)
+            for (let i = 0; i < 5; i++) {
+                const fieldKey = `file_${level}_${i + 1}`;
+                if (qDeleted.includes(fieldKey)) continue; // Marked for deletion
+                if (qFiles[level]?.[i]) return true; // Has new file
+                if (qExisting[level]?.[i]) return true; // Has existing file
+            }
+            return false;
+        };
 
         if (SPECIAL_QUESTIONS.includes(qNo)) {
-            // Check unified Level 0 - sum of new and existing
-            const hasFiles = (qFiles[0]?.length || 0) + (qExisting[0]?.length || 0) > 0;
-            if (!hasFiles) return false;
+            if (!hasFileInSlot(0)) return false;
         } else {
-            // Check required levels 1..score
             for (let level = 1; level <= score; level++) {
-                const hasLevelFiles = (qFiles[level]?.length || 0) + (qExisting[level]?.length || 0) > 0;
-                if (!hasLevelFiles) {
-                    return false; // Missing file for this required level
-                }
+                if (!hasFileInSlot(level)) return false;
             }
         }
         return true;
     };
 
-    const handleViewFile = async (fileName: string) => {
+    const handleViewFile = (fileName: string) => {
         if (!fileName) {
             alert("ไฟล์นี้เพิ่งถูกบันทึก กรุณารีเฟรชหน้าจอเพื่อรับลิงก์สำหรับเปิดดู");
             return;
         }
-        try {
-            const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`, { credentials: "include" });
-            if (!res.ok) throw new Error("Failed to get file URL");
-            const data = await res.json();
-            if (data.url) {
-                window.open(data.url, '_blank');
-            } else {
-                throw new Error("No URL returned from server");
+        setPreviewFileName(fileName);
+    };
+
+    const handleRemoveExistingFile = (questionId: string, level: number, index: number, fileName: string) => {
+        if (!confirm("คุณต้องการลบไฟล์นี้ใช่หรือไม่? (การลบจะมีผลเมื่อคุณกดบันทึกข้อนี้)")) return;
+
+        const fieldKey = `file_${level}_${index + 1}`;
+
+        // 1. Add to deleted list
+        setDeletedFileKeys(prev => ({
+            ...prev,
+            [questionId]: [...(prev[questionId] || []), fieldKey]
+        }));
+
+        // 2. Remove from UI display
+        setLocalExistingFiles(prev => {
+            const currentQFiles = { ...(prev[questionId] || {}) };
+            if (currentQFiles[level]) {
+                currentQFiles[level] = currentQFiles[level].filter((_, i) => i !== index);
             }
-        } catch (err: any) {
-            console.error("View file error:", err);
-            alert(`ไม่สามารถเปิดไฟล์ได้: ${err.message}`);
+            return { ...prev, [questionId]: currentQFiles };
+        });
+
+        // 3. Mark as unsaved
+        if (savedQuestionIds.includes(questionId)) {
+            setSavedQuestionIds(prev => prev.filter(item => item !== questionId));
         }
     };
 
@@ -217,15 +233,17 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
         // Detect Changes for PATCH optimizer
         const scoreChanged = score !== initialScore;
-        const hasNewFiles = Object.values(qFilesForSave).some(arr => arr.length > 0);
+        const hasNewFiles = Object.values(qFilesForSave).some(slots => Object.keys(slots).length > 0);
+        const qDeleted = deletedFileKeys[id] || [];
 
         // If it’s a PATCH and nothing changed, skip API call
-        if (method === "PATCH" && !scoreChanged && !hasNewFiles) {
+        if (method === "PATCH" && !scoreChanged && !hasNewFiles && qDeleted.length === 0) {
             alert("บันทึกเรียบร้อย (ไม่มีการเปลี่ยนแปลง)");
             return;
         }
 
         try {
+            setSavingId(id);
             const formData = new FormData();
             formData.append("questionId", id);
 
@@ -235,17 +253,23 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
             }
 
             // Append files with keys: file_{level}_{index}
-            Object.entries(qFilesForSave).forEach(([levelStr, levelFiles]) => {
+            Object.entries(qFilesForSave).forEach(([levelStr, slotsMap]) => {
                 const level = parseInt(levelStr);
-                // For special questions (unified level 0), map to the SELECTION score (e.g., choice 3 -> file_3_1)
                 const isSpecial = SPECIAL_QUESTIONS.includes(qNo);
                 const effectiveLevel = (isSpecial && level === 0) ? score :
                     (level === 0) ? 1 : level;
 
-                levelFiles.forEach((file, idx) => {
-                    formData.append(`file_${effectiveLevel}_${idx + 1}`, file);
+                Object.entries(slotsMap).forEach(([slotIdx, file]) => {
+                    formData.append(`file_${effectiveLevel}_${parseInt(slotIdx) + 1}`, file);
                 });
             });
+
+            // Append deleted file signals
+            if (method === "PATCH") {
+                qDeleted.forEach(key => {
+                    formData.append(key, "");
+                });
+            }
 
             const res = await fetch("/api/factories/assessments/answers", {
                 method: method,
@@ -259,27 +283,23 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
             }
 
             // --- Success Save ---
-
-            // 1. Mark as saved
+            // 1. Mark as saved locally first
             if (!savedQuestionIds.includes(id)) {
                 setSavedQuestionIds(prev => [...prev, id]);
             }
 
-            // 2. Move NEW files to LOCAL EXISTING FILES for immediate UI persistence
-            setLocalExistingFiles(prev => {
-                const currentQFiles = { ...(prev[id] || {}) };
-                Object.entries(qFilesForSave).forEach(([lStr, arr]) => {
-                    const l = parseInt(lStr);
-                    if (!currentQFiles[l]) currentQFiles[l] = [];
-                    arr.forEach(file => {
-                        currentQFiles[l].push({ name: file.name, path: "" });
-                    });
-                });
-                return { ...prev, [id]: currentQFiles };
-            });
+            // 2. Call Parent Refresh to get real file paths and updated state
+            if (refreshAnswers) {
+                await refreshAnswers();
+            }
 
-            // 3. Clear the NEW FILES state for this question
+            // 3. Clear the NEW FILES and DELETED state for this question
             setFiles(prev => {
+                const newState = { ...prev };
+                delete newState[id];
+                return newState;
+            });
+            setDeletedFileKeys(prev => {
                 const newState = { ...prev };
                 delete newState[id];
                 return newState;
@@ -288,10 +308,11 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
             // 4. Clear error
             setErrorIds(prev => prev.filter(item => item !== id));
 
-            alert("บันทึกเบื้องต้นสำเร็จ");
+            alert("บันทึกสำเร็จ");
         } catch (err: any) {
-            console.error("Save error:", err);
             alert(`เกิดข้อผิดพลาดในการบันทึก: ${err.message}`);
+        } finally {
+            setSavingId(null);
         }
     };
 
@@ -300,7 +321,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
         if (savedQuestionIds.length !== totalQuestions) {
             const missingCount = totalQuestions - savedQuestionIds.length;
             alert(`กรุณาบันทึกข้อมูลให้ครบทุกข้อก่อนส่ง (เหลือ ${missingCount} ข้อ)`);
-            
+
             // Find first unsaved
             const allQuestionsFlat = Object.values(groupedQuestions).flat();
             const firstUnsavedId = allQuestionsFlat.find(q => !savedQuestionIds.includes(q.id))?.id;
@@ -329,7 +350,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
             // Success
             alert('ประเมินเสร็จสิ้นแล้ว');
-            
+
             // Cleanup local storage if used
             localStorage.removeItem('twhp_answers');
             localStorage.removeItem('twhp_grouped_questions');
@@ -337,7 +358,6 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
             // Redirect to assessment list or dashboard
             router.push('/factories/assess');
         } catch (err: any) {
-            console.error("Submission error:", err);
             alert(`เกิดข้อผิดพลาดในการส่งข้อมูล: ${err.message}`);
         } finally {
             setSubmitting(false);
@@ -346,17 +366,37 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
     return (
         <div className="space-y-12 pb-32">
-            {/* Progress Bar */}
-            <div className="sticky top-0 z-50 bg-slate-50/95 backdrop-blur py-4 border-b border-slate-200 mb-8 -mx-4 px-4 sm:mx-0 sm:px-0 shadow-sm transition-all">
-                <div className="flex justify-between text-sm font-semibold text-slate-600 mb-2">
-                    <span>ความคืบหน้าการบันทึกข้อมูล</span>
-                    <span>{progress} / {totalQuestions} ({percentage}%)</span>
-                </div>
-                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-green-500 transition-all duration-300 ease-out"
-                        style={{ width: `${percentage}%` }}
-                    />
+            {/* Premium Progress Bar */}
+            <div className="sticky top-4 z-50 mb-10 mx-auto max-w-full sm:mx-0">
+                <div className="bg-white/80 backdrop-blur-md rounded-3xl border border-white/50 shadow-xl p-5 transition-all duration-300 hover:shadow-2xl hover:bg-white/90 group ring-1 ring-slate-900/5">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-emerald-200 shadow-xl group-hover:scale-105 transition-transform duration-500">
+                                <CheckCircle size={24} className="animate-[pulse_2s_infinite]" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800">ความคืบหน้าการประเมิน</h3>
+                                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">บันทึกเรียบร้อยแล้ว {progress} จากทั้งหมด {totalQuestions} ข้อ</p>
+                            </div>
+                        </div>
+                        <div className="flex items-end gap-3 w-full sm:w-auto justify-end sm:justify-start">
+                            <div className="text-right">
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-3xl font-black text-emerald-600 tabular-nums tracking-tighter">{percentage}</span>
+                                    <span className="text-sm font-bold text-emerald-500">%</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest leading-none">Complete</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-5 h-4 w-full bg-slate-100/50 rounded-full overflow-hidden p-1 border border-slate-200 shadow-inner">
+                        <div
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-1000 ease-out relative"
+                            style={{ width: `${percentage}%` }}
+                        >
+                            <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] opacity-30 animate-[pulse_1.5s_infinite]" />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -384,7 +424,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                             if (showUpload) {
                                 if (isSpecial) {
                                     // Check unified level 0
-                                    const hasNewFiles = qFiles[0] && qFiles[0].length > 0;
+                                    const hasNewFiles = qFiles[0] && Object.keys(qFiles[0]).length > 0;
                                     const hasExistingFiles = qExistingFiles[0] && qExistingFiles[0].length > 0;
 
                                     if (!hasNewFiles && !hasExistingFiles) {
@@ -392,7 +432,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                     }
                                 } else {
                                     for (let i = 1; i <= currentScore; i++) {
-                                        const hasNewFiles = qFiles[i] && qFiles[i].length > 0;
+                                        const hasNewFiles = qFiles[i] && Object.keys(qFiles[i]).length > 0;
                                         const hasExistingFiles = qExistingFiles[i] && qExistingFiles[i].length > 0;
 
                                         if (!hasNewFiles && !hasExistingFiles) {
@@ -444,7 +484,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                             return (
                                                 <div
                                                     key={score}
-                                                    onClick={() => handleScoreChange(q.no, score)}
+                                                    onClick={() => handleScoreChange(q.id, score)}
                                                     className={`
                             group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col
                             ${isSelected
@@ -505,8 +545,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
                                     {/* Cumulative Upload Section */}
                                     {showUpload && (
-                                        <div className={`space-y-4 bg-slate-50 rounded-xl p-5 border-2 ${isEvidenceMissing ? 'border-red-300 bg-red-50/50' : 'border-slate-100'} mb-6`}>
-
+                                        <div className="space-y-4 bg-slate-50 rounded-xl p-5 border-2 border-slate-100 mb-6">
                                             <div className="flex items-center justify-between mb-2">
                                                 <h4 className="font-semibold text-slate-700 flex items-center gap-2">
                                                     <Upload size={18} />
@@ -514,176 +553,76 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                                 </h4>
                                             </div>
 
-                                            {isSpecial ? (
-                                                /* Special Questions: Unified Upload (Level 0) */
-                                                <div className={`
-                                                    p-4 rounded-lg bg-white border shadow-sm
-                                                    ${isEvidenceMissing ? 'border-red-200 ring-1 ring-red-100' : 'border-slate-200'}
-                                                `}>
-                                                    <div className="space-y-3 mb-4">
-                                                        {Array.from({ length: currentScore }, (_, i) => i + 1).map((level) => (
-                                                            <div key={level}>
-                                                                <div className="text-xs font-bold uppercase text-blue-600 mb-1">
-                                                                    เกณฑ์ระดับ {level} คะแนน
-                                                                </div>
-                                                                <p className="text-sm text-slate-700 leading-snug whitespace-pre-line">
-                                                                    {q[level.toString() as "1" | "2" | "3"] || "ไม่มีรายละเอียด"}
-                                                                </p>
-                                                            </div>
-                                                        ))}
+                                            {Array.from({ length: isSpecial ? 1 : currentScore }, (_, i) => isSpecial ? 0 : i + 1).map((level) => (
+                                                <div key={level} className="p-4 rounded-lg bg-white border border-slate-200 shadow-sm">
+                                                    <div className="text-xs font-bold uppercase text-blue-600 mb-2">
+                                                        {isSpecial ? "ไฟล์หลักฐาน (รวม)" : `เกณฑ์ระดับ ${level} คะแนน`}
                                                     </div>
+                                                    {!isSpecial && (
+                                                        <p className="text-sm text-slate-700 leading-snug whitespace-pre-line mb-4">
+                                                            {q[level.toString() as "1" | "2" | "3"] || "ไม่มีรายละเอียด"}
+                                                        </p>
+                                                    )}
 
-                                                    <div className="border-t border-slate-100 pt-3">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <span className="text-sm font-semibold text-slate-700">แนบไฟล์หลักฐาน (รวมไม่เกิน 3 ไฟล์)</span>
-                                                            <div className="flex-none">
-                                                                {(qFiles[0] || []).length < 3 && (
-                                                                    <button
-                                                                        onClick={() => fileInputRefs.current[`${q.id}_0`]?.click()}
-                                                                        className="text-xs bg-slate-50 border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap"
-                                                                    >
-                                                                        + เพิ่มไฟล์ ({(qFiles[0] || []).length}/3)
-                                                                    </button>
-                                                                )}
-                                                                <input
-                                                                    type="file"
-                                                                    multiple
-                                                                    className="hidden"
-                                                                    ref={el => { fileInputRefs.current[`${q.id}_0`] = el; }}
-                                                                    onChange={(e) => handleFileChange(q.id, 0, e)}
-                                                                />
-                                                            </div>
-                                                        </div>
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {Array.from({ length: isSpecial ? 5 : 3 }).map((_, slotIdx) => {
+                                                            const existing = qExistingFiles[level]?.[slotIdx];
+                                                            const newVal = qFiles[level]?.[slotIdx];
+                                                            const fieldKey = `file_${level}_${slotIdx + 1}`;
+                                                            const isMarkedDeleted = (deletedFileKeys[q.id] || []).includes(fieldKey);
 
-                                                        {/* File List for Special Question */}
-                                                        <div className="space-y-1.5">
-                                                            {/* Existing Files */}
-                                                            {(qExistingFiles[0] || []).map((file, idx) => (
-                                                                <div key={`existing-${idx}`} className="flex items-center justify-between bg-emerald-50 p-1.5 rounded border border-emerald-200 text-xs">
-                                                                    <div className="flex items-center gap-2 overflow-hidden">
-                                                                        <FileIcon size={12} className="text-emerald-500 flex-none" />
-                                                                        <span className="truncate text-emerald-700 font-medium max-w-[150px] sm:max-w-xs">ไฟล์ {idx + 1}</span>
+                                                            return (
+                                                                <div key={slotIdx} className="flex items-center justify-between bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
+                                                                    <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase">Slot {slotIdx + 1}</span>
+                                                                        {newVal ? (
+                                                                            <span className="text-xs text-blue-600 font-medium truncate italic">ไฟล์ที่ {slotIdx + 1} (รอส่ง)</span>
+                                                                        ) : (existing && !isMarkedDeleted) ? (
+                                                                            <span className="text-xs text-emerald-700 font-medium truncate">ไฟล์เดิมที่ {slotIdx + 1}</span>
+                                                                        ) : (
+                                                                            <span className="text-xs text-slate-400 italic">ว่าง</span>
+                                                                        )}
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => handleViewFile(file.path)}
-                                                                        className="text-emerald-600 hover:text-emerald-800 px-2 py-0.5 rounded bg-white border border-emerald-200"
-                                                                    >
-                                                                        เปิดดู
-                                                                    </button>
-                                                                </div>
-                                                            ))}
 
-                                                            {/* New Files */}
-                                                            {(qFiles[0] || []).map((file, idx) => (
-                                                                <div key={`new-${idx}`} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                                                                    <div className="flex items-center gap-2 overflow-hidden">
-                                                                        <FileIcon size={12} className="text-blue-500 flex-none" />
-                                                                        <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name} (รอส่ง)</span>
+                                                                    <div className="flex items-center gap-1">
+                                                                        {(existing && !isMarkedDeleted && existing.path) && (
+                                                                            <button onClick={() => handleViewFile(existing.path)} type="button" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded">
+                                                                                <FileIcon size={14} />
+                                                                            </button>
+                                                                        )}
+                                                                        {(newVal || (existing && !isMarkedDeleted)) ? (
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (newVal) removeNewFile(q.id, level, slotIdx);
+                                                                                    else handleRemoveExistingFile(q.id, level, slotIdx, existing!.path);
+                                                                                }}
+                                                                                type="button"
+                                                                                className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                                                            >
+                                                                                <X size={14} />
+                                                                            </button>
+                                                                        ) : (
+                                                                            <button
+                                                                                onClick={() => fileInputRefs.current[`${q.id}_${level}_${slotIdx}`]?.click()}
+                                                                                type="button"
+                                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                                                            >
+                                                                                <Upload size={14} />
+                                                                                <input
+                                                                                    type="file"
+                                                                                    className="hidden"
+                                                                                    ref={el => { fileInputRefs.current[`${q.id}_${level}_${slotIdx}`] = el; }}
+                                                                                    onChange={(e) => handleFileChange(q.id, level, slotIdx, e)}
+                                                                                />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
-                                                                    <button
-                                                                        onClick={() => removeFile(q.id, 0, idx)}
-                                                                        className="text-slate-400 hover:text-red-500 p-0.5"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
                                                                 </div>
-                                                            ))}
-
-                                                            {/* Empty Warning */}
-                                                            {(qExistingFiles[0] || []).length === 0 && (qFiles[0] || []).length === 0 && (
-                                                                <div className={`text-xs italic ${isEvidenceMissing ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                    * ยังไม่มีไฟล์แนบ (จำเป็น)
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                /* Normal Questions: Per Level Upload */
-                                                Array.from({ length: currentScore }, (_, i) => i + 1).map((level) => {
-                                                    const levelFiles = qFiles[level] || [];
-                                                    const levelMissing = missingLevels.includes(level);
-                                                    const criteriaText = q[level.toString() as "1" | "2" | "3"];
-
-                                                    return (
-                                                        <div key={level} className={`
-                                       p-4 rounded-lg bg-white border shadow-sm
-                                       ${levelMissing ? 'border-red-200 ring-1 ring-red-100' : 'border-slate-200'}
-                                   `}>
-                                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
-                                                                <div className="flex-1">
-                                                                    <div className="text-xs font-bold uppercase text-blue-600 mb-1">
-                                                                        เกณฑ์ระดับ {level} คะแนน
-                                                                    </div>
-                                                                    <p className="text-sm text-slate-700 leading-snug whitespace-pre-line">
-                                                                        {criteriaText || "ไม่มีรายละเอียด"}
-                                                                    </p>
-                                                                </div>
-
-                                                                <div className="flex-none text-right">
-                                                                    {levelFiles.length < 3 && (
-                                                                        <button
-                                                                            onClick={() => fileInputRefs.current[`${q.id}_${level}`]?.click()}
-                                                                            className="text-xs bg-slate-50 border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 whitespace-nowrap"
-                                                                        >
-                                                                            + เพิ่มไฟล์ ({levelFiles.length}/3)
-                                                                        </button>
-                                                                    )}
-                                                                    <input
-                                                                        type="file"
-                                                                        multiple
-                                                                        className="hidden"
-                                                                        ref={el => { fileInputRefs.current[`${q.id}_${level}`] = el; }}
-                                                                        onChange={(e) => handleFileChange(q.id, level, e)}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            {/* File List for this Level */}
-                                                            <div className="space-y-1.5">
-                                                                {/* Existing Files */}
-                                                                {(qExistingFiles[level] || []).map((file, idx) => (
-                                                                    <div key={`existing-${level}-${idx}`} className="flex items-center justify-between bg-emerald-50 p-1.5 rounded border border-emerald-200 text-xs">
-                                                                        <div className="flex items-center gap-2 overflow-hidden">
-                                                                            <FileIcon size={12} className="text-emerald-500 flex-none" />
-                                                                            <span className="truncate text-emerald-700 font-medium max-w-[150px] sm:max-w-xs">ไฟล์ {idx + 1}</span>
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => handleViewFile(file.path)}
-                                                                            className="text-emerald-600 hover:text-emerald-800 px-2 py-0.5 rounded bg-white border border-emerald-200"
-                                                                        >
-                                                                            เปิดดู
-                                                                        </button>
-                                                                    </div>
-                                                                ))}
-
-                                                                {/* New Files */}
-                                                                {levelFiles.map((file, idx) => (
-                                                                    <div key={`new-${level}-${idx}`} className="flex items-center justify-between bg-slate-50 p-1.5 rounded border border-slate-200 text-xs">
-                                                                        <div className="flex items-center gap-2 overflow-hidden">
-                                                                            <FileIcon size={12} className="text-blue-500 flex-none" />
-                                                                            <span className="truncate text-slate-600 bg-transparent max-w-[150px] sm:max-w-xs">{file.name} (รอส่ง)</span>
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => removeFile(q.id, level, idx)}
-                                                                            className="text-slate-400 hover:text-red-500 p-0.5"
-                                                                        >
-                                                                            <X size={14} />
-                                                                        </button>
-                                                                    </div>
-                                                                ))}
-
-                                                                {/* Empty Warning */}
-                                                                {(qExistingFiles[level] || []).length === 0 && levelFiles.length === 0 && (
-                                                                    <div className={`text-xs italic ${levelMissing ? 'text-red-500' : 'text-slate-400'}`}>
-                                                                        * ยังไม่มีไฟล์แนบ (จำเป็น)
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
+                                            ))}
                                         </div>
                                     )}
 
@@ -691,7 +630,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                     <div className="flex justify-end pt-4 border-t border-slate-100">
                                         <button
                                             onClick={() => handleSaveQuestion(q.id, q.no)}
-                                            disabled={isSaved}
+                                            disabled={savingId === q.id}
                                             className={`
                             flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-all
                             ${isSaved
@@ -741,6 +680,134 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                         <CheckSquare size={20} />
                         {submitting ? 'กำลังส่งข้อมูล...' : 'ยืนยันการส่ง'}
                     </button>
+                </div>
+            </div>
+
+            {previewFileName && (
+                <FilePreviewModal
+                    fileName={previewFileName}
+                    onClose={() => setPreviewFileName(null)}
+                />
+            )}
+        </div>
+    );
+}
+
+// --- Preview Modal Component ---
+function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: () => void }) {
+    const [presignedUrl, setPresignedUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        setIsLoading(true);
+        setError(null);
+        setPresignedUrl(null);
+
+        fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`)
+            .then(async (res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const url = data.url || data.presignedUrl || data.presigned_url;
+                if (typeof url !== "string" || !url.startsWith("http")) {
+                    throw new Error("URL ไม่ถูกต้อง");
+                }
+                if (!cancelled) setPresignedUrl(url);
+            })
+            .catch((err) => {
+                if (!cancelled) setError("ไม่สามารถโหลดไฟล์ได้ กรุณาลองใหม่อีกครั้ง");
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoading(false);
+            });
+
+        return () => { cancelled = false; }; // Simplified cancel for React.useEffect
+    }, [fileName]);
+
+    const handleDownload = async () => {
+        try {
+            const res = await fetch(`/api/factories/files?fileName=${encodeURIComponent(fileName)}`);
+            if (!res.ok) throw new Error("Failed");
+            const data = await res.json();
+            const url = data.url || data.presignedUrl || data.presigned_url;
+            if (typeof url === "string" && url.startsWith("http")) {
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                a.target = "_blank";
+                a.click();
+            }
+        } catch {
+            alert("ไม่สามารถดาวน์โหลดไฟล์ได้");
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 text-[#2E8B57] rounded-xl flex items-center justify-center">
+                            <FileIcon size={20} />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-800">ตัวอย่างไฟล์</h3>
+                            <p className="text-xs text-gray-500 font-medium">เอกสารหลักฐาน</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleDownload}
+                            className="p-2.5 text-gray-500 hover:text-[#2E8B57] hover:bg-green-50 rounded-xl transition-colors"
+                            title="ดาวน์โหลดไฟล์"
+                        >
+                            <Download size={20} />
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 bg-gray-100 relative min-h-0">
+                    {isLoading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white z-20">
+                            <Loader2 className="animate-spin text-[#2E8B57]" size={32} />
+                            <p className="text-sm font-medium text-gray-600">กำลังโหลดเอกสาร...</p>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white z-20">
+                            <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center">
+                                <X size={32} />
+                            </div>
+                            <p className="text-sm font-medium text-gray-700">{error}</p>
+                            <button
+                                onClick={onClose}
+                                className="px-6 py-2 bg-[#2E8B57] text-white rounded-xl text-sm font-semibold hover:bg-[#257a4a] transition-colors"
+                            >
+                                ปิด
+                            </button>
+                        </div>
+                    )}
+
+                    {presignedUrl && (
+                        <iframe
+                            key={presignedUrl}
+                            src={presignedUrl}
+                            className="w-full h-full border-none"
+                            title="PDF Preview"
+                        />
+                    )}
                 </div>
             </div>
         </div>

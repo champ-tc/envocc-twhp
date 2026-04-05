@@ -114,10 +114,12 @@ export default function LoginPage() {
                 </div>
                 <input
                   type="text"
+                  id="username"
                   name="username"
                   value={formData.username}
                   onChange={handleChange}
                   required
+                  autoComplete="username"
                   className="block w-full pl-10 pr-3 py-3 text-gray-800 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2E8B57] focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
                   placeholder="ระบุชื่อผู้ใช้งาน"
                 />
@@ -135,10 +137,12 @@ export default function LoginPage() {
 
                 <input
                   type={showPassword ? "text" : "password"}
+                  id="password"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  autoComplete="current-password"
                   className="block w-full pl-10 pr-12 py-3 text-gray-800 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2E8B57] focus:border-transparent outline-none transition bg-gray-50 focus:bg-white"
                   placeholder="ระบุรหัสผ่าน"
                 />
