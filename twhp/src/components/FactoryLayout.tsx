@@ -73,8 +73,6 @@ export default function FactoryLayout({ children }: { children: React.ReactNode 
               title={title}
               fullName={user.fullName}
               userRole={user.role}
-              establishment={user.establishment}
-              username={user.username}
             />
           )}
 

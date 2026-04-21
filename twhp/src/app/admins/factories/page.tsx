@@ -6,6 +6,7 @@ import { useAdminAuth } from "@/components/AdminLayout";
 type Filter = "pending" | "approved";
 
 type Factory = {
+  username: number;
   account_id: number;
   factory_type: number;
   name_th: string;
@@ -175,6 +176,9 @@ export default function AdminFactoriesPage() {
             <thead className="bg-gray-50 text-gray-900">
               <tr>
                 <th className="px-4 py-3 text-left border-b border-gray-200">
+                  ชื่อผู้ใช้
+                </th>
+                <th className="px-4 py-3 text-left border-b border-gray-200">
                   ชื่อสถานประกอบการ
                 </th>
                 <th className="px-4 py-3 text-left border-b border-gray-200">
@@ -210,6 +214,13 @@ export default function AdminFactoriesPage() {
 
                   return (
                     <tr key={r.account_id} className="hover:bg-gray-50">
+
+                      <td className="px-4 py-3 border-b border-gray-200">
+                        <div className="font-semibold text-gray-900">
+                          {r.username || "-"}
+                        </div>
+                      </td>
+
                       <td className="px-4 py-3 border-b border-gray-200">
                         <div className="font-semibold text-gray-900">
                           {r.name_th || "-"}

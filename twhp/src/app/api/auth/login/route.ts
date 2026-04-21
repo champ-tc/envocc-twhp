@@ -3,6 +3,7 @@ import { logger } from "../../_utils/logger";
 import { forwardHeaders } from "../../_utils/forwardHeaders";
 import { rateLimit } from "../../_utils/rateLimit";
 import { loginSchema } from "../../_schemas";
+import { normalizeUserData, type RawAuthResponse } from "@/lib/auth-utils";
 
 function mapLoginMessage(raw: unknown): string {
   const msg = typeof raw === "string" ? raw.toLowerCase().trim() : "";
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
 
     const res = NextResponse.json({
       success: true,
+      user: normalizeUserData(data.user as RawAuthResponse),
       redirectUrl: ["Provincial", "Provicial", "Evaluator", "DOED"].includes(
         data.user.role,
       )

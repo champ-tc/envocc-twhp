@@ -10,7 +10,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="bg-white p-6 text-gray-800 rounded-lg shadow">
-      ยินดีต้อนรับ {user.fullName || user.username}
+      ยินดีต้อนรับ {user.fullName}
     </div>
   );
 }

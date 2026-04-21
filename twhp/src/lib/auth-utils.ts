@@ -1,9 +1,7 @@
 export interface NormalizedUser {
   id: number;
-  username: string;
   role: string;
   fullName: string;
-  establishment: string;
   provinceId?: number;
   region?: number;
   change_pw?: boolean;
@@ -27,6 +25,7 @@ export interface RawAuthResponse {
   username: string;
   role: string;
   name_th?: string; // บาง backend อาจส่ง name_th ไว้ระดับ root
+  full_name?: string; // เพิ่ม full_name
   change_pw?: boolean;
   eval_level?: string; // เพิ่ม eval_level กรณีส่งมาระดับ root
   [k: string]: unknown;
@@ -45,31 +44,17 @@ function fullNameFromAdmin(details: UserDetailFields, fallback: string) {
   return name || fallback;
 }
 
-function getEvaluatorEstablishment(eval_level?: string): string {
-  switch (eval_level) {
-    case "ODPC":
-      return "สคร.";
-    case "Mental":
-      return "กรมแพทย์";
-    case "DOH":
-      return "กรมอนามัย";
-    default:
-      return "สคร.";
-  }
-}
-
 export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
   const role = raw.role;
+  const fullName = raw.full_name || raw.username;
 
   // ===== Admin (DOED) =====
   if (role === "DOED") {
     const d = pickDetails(raw, ["adminDoed", "AdminsDoed"]);
     return {
       id: raw.id,
-      username: raw.username,
       role,
-      fullName: fullNameFromAdmin(d, raw.username),
-      establishment: "กรมควบคุมโรค",
+      fullName,
       change_pw: raw.change_pw,
       eval_level: typeof d.eval_level === "string" ? d.eval_level : raw.eval_level,
     };
@@ -83,10 +68,8 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
 
     return {
       id: raw.id,
-      username: raw.username,
       role,
-      fullName: fullNameFromAdmin(d, raw.username),
-      establishment: getEvaluatorEstablishment(eval_level),
+      fullName,
       change_pw: raw.change_pw,
       eval_level,
     };
@@ -105,13 +88,8 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
 
     return {
       id: raw.id,
-      username: raw.username,
       role,
-      fullName: fullNameFromAdmin(d, raw.username),
-      establishment:
-        role === "ODPC"
-          ? "สำนักงานป้องกันควบคุมโรค"
-          : `สำนักงานพลังงานจังหวัด${province}`,
+      fullName,
       provinceId: typeof d.province_id === "number" ? d.province_id : undefined,
       region: typeof d.region === "number" ? d.region : undefined,
       change_pw: raw.change_pw,
@@ -122,15 +100,11 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
   // ===== Factory (User) =====
   if (role === "Factory") {
     const d = pickDetails(raw, ["factory", "Factories"]);
-    const fullName = d.name_th || raw.name_th || raw.username;
-    const establishment = d.factory_name || "ไม่ระบุชื่อโรงงาน";
 
     return {
       id: raw.id,
-      username: raw.username,
       role,
       fullName,
-      establishment,
       change_pw: raw.change_pw,
       eval_level: typeof d.eval_level === "string" ? d.eval_level : raw.eval_level,
     };
@@ -139,10 +113,8 @@ export function normalizeUserData(raw: RawAuthResponse): NormalizedUser {
   // ===== Fallback =====
   return {
     id: raw.id,
-    username: raw.username,
     role,
-    fullName: raw.username,
-    establishment: "ผู้ใช้งานทั่วไป",
+    fullName,
     change_pw: raw.change_pw,
     eval_level: raw.eval_level,
   };

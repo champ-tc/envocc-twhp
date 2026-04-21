@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFactoryAuth } from "@/components/FactoryLayout";
-import { FileText, ExternalLink, X, Download, Loader2 } from "lucide-react";
+import { FileText, ExternalLink, X, Download, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { NormalizedUser } from "@/lib/auth-utils";
 
 type AuthResponse = { isLoggedIn: boolean; user: NormalizedUser };
@@ -176,6 +176,7 @@ export default function UserMainPage() {
   const [enrollInfo, setEnrollInfo] = useState<string>("");
   const [hasCover, setHasCover] = useState(false);
   const [coverStatus, setCoverStatus] = useState<string>("");
+  const [showNotice, setShowNotice] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [employee, setEmployee] = useState<EmployeeState>(EMP_INIT);
@@ -190,6 +191,8 @@ export default function UserMainPage() {
     standard: StandardState;
     officer: SafetyOfficerState;
   } | null>(null);
+
+  const hasChecked = useRef(false);
 
   const check = async () => {
     if (!user) return;
@@ -320,6 +323,7 @@ export default function UserMainPage() {
           } catch (err) {
             setHasCover(false);
           }
+
         }
         return;
       }
@@ -335,8 +339,17 @@ export default function UserMainPage() {
   };
 
   useEffect(() => {
-    check();
+    if (user && !hasChecked.current) {
+      hasChecked.current = true;
+      check();
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (alreadyEnrolled && user && !checkingEnroll) {
+      setShowNotice(true);
+    }
+  }, [alreadyEnrolled, user, checkingEnroll]);
 
   const handleEditEnrollment = async () => {
     await check(); // Fresh fetch to ensure data is displayed
@@ -571,6 +584,10 @@ export default function UserMainPage() {
     } finally {
       setIsCreatingCover(false);
     }
+  };
+
+  const handleHandleConfirmNotice = () => {
+    setShowNotice(false);
   };
 
   if (isLoading) return <div className="p-10 text-black">Loading...</div>;
@@ -911,6 +928,34 @@ export default function UserMainPage() {
           fileName={previewFileName}
           onClose={() => setPreviewFileName(null)}
         />
+      )}
+
+      {/* ✅ Enrollment Mandatory Update Notice Modal */}
+      {showNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="bg-[#E9F7EF] p-8 flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-emerald-50">
+                <AlertCircle size={32} className="text-[#2E8B57]" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">แจ้งเตือนผู้เข้าร่วมโครงการ</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                สถานประกอบการที่สมัครเข้าร่วมโครงการก่อนวันที่{" "}
+                <span className="font-bold text-[#2E8B57]">30 มีนาคม 2569</span>{" "}
+                ต้องไปแก้ไขข้อมูลการสมัครเข้าร่วมโครงการ และแนบไฟล์มาตรฐานก่อนทำแบบประเมินตนเอง
+              </p>
+            </div>
+            <div className="p-6 bg-white flex flex-col gap-3">
+              <button
+                onClick={handleHandleConfirmNotice}
+                className="w-full bg-[#2E8B57] text-white py-4 rounded-2xl font-bold text-lg hover:bg-[#246e45] transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={20} />
+                รับทราบ
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

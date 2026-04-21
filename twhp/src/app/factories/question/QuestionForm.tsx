@@ -16,6 +16,8 @@ interface Question {
     "N/A": string;
     special?: string;
     originalId?: number; // Added for debugging
+    isHidden?: boolean;
+    standardCount?: number;
 }
 
 interface QuestionFormProps {
@@ -83,12 +85,25 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
     // Ref for file inputs: { [qNo_level]: input }
     const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-    // Calculate total number of questions
+    // Calculate total number of questions (visible + hidden)
     const totalQuestions = useMemo(() => {
         return Object.values(groupedQuestions).reduce((acc, items) => acc + items.length, 0);
     }, [groupedQuestions]);
 
-    const progress = savedQuestionIds.length;
+    const hiddenCount = useMemo(() => {
+        return Object.values(groupedQuestions).flat().filter(q => q.isHidden).length;
+    }, [groupedQuestions]);
+
+    const progress = useMemo(() => {
+        const questions = Object.values(groupedQuestions).flat();
+        const visibleSavedCount = savedQuestionIds.filter(id => {
+            const q = questions.find(item => item.id === id);
+            return q && !q.isHidden;
+        }).length;
+
+        return visibleSavedCount + hiddenCount;
+    }, [savedQuestionIds, groupedQuestions, hiddenCount]);
+
     const percentage = totalQuestions > 0 ? Math.round((progress / totalQuestions) * 100) : 0;
 
     const handleScoreChange = (id: string, score: number) => {
@@ -164,7 +179,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
 
         const hasFileInSlot = (level: number): boolean => {
             // Check all 5 possible slots (max)
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 3; i++) {
                 const fieldKey = `file_${level}_${i + 1}`;
                 if (qDeleted.includes(fieldKey)) continue; // Marked for deletion
                 if (qFiles[level]?.[i]) return true; // Has new file
@@ -317,14 +332,14 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
     };
 
     const handleFinalSubmit = async () => {
-        // 1. Check if all questions are saved
-        if (savedQuestionIds.length !== totalQuestions) {
-            const missingCount = totalQuestions - savedQuestionIds.length;
+        // 1. Check if all questions are saved or resolved (isHidden)
+        if (progress !== totalQuestions) {
+            const missingCount = totalQuestions - progress;
             alert(`กรุณาบันทึกข้อมูลให้ครบทุกข้อก่อนส่ง (เหลือ ${missingCount} ข้อ)`);
 
-            // Find first unsaved
+            // Find first unsaved that is NOT hidden
             const allQuestionsFlat = Object.values(groupedQuestions).flat();
-            const firstUnsavedId = allQuestionsFlat.find(q => !savedQuestionIds.includes(q.id))?.id;
+            const firstUnsavedId = allQuestionsFlat.find(q => !q.isHidden && !savedQuestionIds.includes(q.id))?.id;
             if (firstUnsavedId) {
                 document.getElementById(`question-${firstUnsavedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
@@ -367,7 +382,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
     return (
         <div className="space-y-12 pb-32">
             {/* Premium Progress Bar */}
-            <div className="sticky top-4 z-50 mb-10 mx-auto max-w-full sm:mx-0">
+            <div className="sticky top-0 z-50 mb-5 mx-auto max-w-full sm:mx-0">
                 <div className="bg-white/80 backdrop-blur-md rounded-3xl border border-white/50 shadow-xl p-5 transition-all duration-300 hover:shadow-2xl hover:bg-white/90 group ring-1 ring-slate-900/5">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -376,7 +391,16 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-slate-800">ความคืบหน้าการประเมิน</h3>
-                                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">บันทึกเรียบร้อยแล้ว {progress} จากทั้งหมด {totalQuestions} ข้อ</p>
+                                <div className="flex flex-col">
+                                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                                        ประเมินแล้ว {progress} จาก {totalQuestions} ข้อ
+                                    </p>
+                                    {hiddenCount > 0 && (
+                                        <p className="text-[10px] text-emerald-600 font-bold">
+                                            (ผ่านการรับรองอัตโนมัติ {hiddenCount} ข้อ)
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="flex items-end gap-3 w-full sm:w-auto justify-end sm:justify-start">
@@ -399,7 +423,6 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                     </div>
                 </div>
             </div>
-
             {Object.entries(groupedQuestions).map(([type, items]) => (
                 <section key={type} className="space-y-6">
                     <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border-l-4 border-emerald-500 shadow-sm">
@@ -416,240 +439,217 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                             const hasError = errorIds.includes(q.id);
                             const isSaved = savedQuestionIds.includes(q.id);
 
-                            // Only needed if score > 0
                             const showUpload = currentScore !== undefined && currentScore > 0;
                             const isSpecial = SPECIAL_QUESTIONS.includes(q.no);
-
-                            const missingLevels: number[] = [];
-                            if (showUpload) {
-                                if (isSpecial) {
-                                    // Check unified level 0
-                                    const hasNewFiles = qFiles[0] && Object.keys(qFiles[0]).length > 0;
-                                    const hasExistingFiles = qExistingFiles[0] && qExistingFiles[0].length > 0;
-
-                                    if (!hasNewFiles && !hasExistingFiles) {
-                                        missingLevels.push(0);
-                                    }
-                                } else {
-                                    for (let i = 1; i <= currentScore; i++) {
-                                        const hasNewFiles = qFiles[i] && Object.keys(qFiles[i]).length > 0;
-                                        const hasExistingFiles = qExistingFiles[i] && qExistingFiles[i].length > 0;
-
-                                        if (!hasNewFiles && !hasExistingFiles) {
-                                            missingLevels.push(i);
-                                        }
-                                    }
-                                }
-                            }
-                            const isEvidenceMissing = missingLevels.length > 0;
 
                             return (
                                 <div
                                     key={q.id}
                                     id={`question-${q.id}`}
                                     className={`
-                    relative p-6 rounded-2xl border-2 transition-all duration-300 bg-white shadow-sm
-                    ${hasError ? 'border-red-400 ring-4 ring-red-50' : isSaved ? 'border-green-400 ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200'}
-                  `}
+                                        relative p-6 rounded-2xl border-2 transition-all duration-300 bg-white shadow-sm overflow-hidden
+                                        ${hasError ? 'border-red-400 ring-4 ring-red-50' : (isSaved || q.isHidden) ? 'border-green-400 ring-4 ring-green-50' : 'border-slate-100 hover:border-slate-200'}
+                                    `}
                                 >
-                                    {/* Badge & Question */}
-                                    <div className="flex gap-4 mb-6">
-                                        <div className={`
-                      flex-none flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg shadow-inner relative
-                      ${hasError ? 'bg-red-100 text-red-600' : isSaved ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}
-                    `}>
-                                            {q.no}
-                                            {q.special && q.special.trim() !== "" && q.special !== "-2147483648" ? (
-                                                <span className="text-xs ml-0.5 align-top">{q.special}</span>
-                                            ) : null}
-                                            {isSaved && (
-                                                <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
-                                                    <CheckCircle size={14} />
-                                                </div>
-                                            )}
+                                    <div className={`transition-all duration-300 ${q.isHidden ? 'pointer-events-none select-none' : ''}`}>
+                                        <div className="flex gap-4 mb-6">
+                                            <div className={`
+                                                flex-none flex items-center justify-center w-12 h-12 rounded-xl font-bold text-lg shadow-inner relative
+                                                ${hasError ? 'bg-red-100 text-red-600' : (isSaved || q.isHidden) ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}
+                                            `}>
+                                                {q.no}
+                                                {q.special && q.special.trim() !== "" && q.special !== "-2147483648" ? (
+                                                    <span className="text-xs ml-0.5 align-top">{q.special}</span>
+                                                ) : null}
+                                                {(isSaved || q.isHidden) && (
+                                                    <div className="absolute -top-1 -right-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
+                                                        <CheckCircle size={14} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-bold text-slate-900 leading-relaxed whitespace-pre-line">
+                                                    {q.question}
+                                                    {q.isHidden && (
+                                                        <span className="text-red-600 ml-2 font-bold">(ผ่านมาตรฐานเทียบเคียง)</span>
+                                                    )}
+                                                </h3>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-medium text-slate-900 leading-relaxed whitespace-pre-line">
-                                                {q.question}
-                                            </h3>
-                                        </div>
-                                    </div>
 
-                                    {/* Selection Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                                        {[0, 1, 2, 3].map((score) => {
-                                            const isSelected = currentScore === score;
-                                            const scoreText = q[score.toString() as "0" | "1" | "2" | "3"];
+                                        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 ${q.isHidden ? 'grayscale opacity-70' : ''}`}>
+                                            {[0, 1, 2, 3].map((score) => {
+                                                const isSelected = currentScore === score;
+                                                const scoreText = q[score.toString() as "0" | "1" | "2" | "3"];
 
-                                            return (
+                                                return (
+                                                    <div
+                                                        key={score}
+                                                        onClick={() => !q.isHidden && handleScoreChange(q.id, score)}
+                                                        className={`
+                                                            group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col
+                                                            ${isSelected
+                                                                ? 'border-blue-600 bg-blue-50/50 shadow-md transform scale-[1.02]'
+                                                                : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm'}
+                                                        `}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div className={`
+                                                                w-6 h-6 rounded-full border-2 flex items-center justify-center
+                                                                ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 group-hover:border-blue-400'}
+                                                            `}>
+                                                                {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
+                                                            </div>
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-md
+                                                                ${isSelected ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'}
+                                                            `}>
+                                                                {score} คะแนน
+                                                            </span>
+                                                        </div>
+                                                        <p className={`text-sm leading-snug flex-1 whitespace-pre-line ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>
+                                                            {scoreText || "-"}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {q["N/A"] && q["N/A"] !== "-" && q["N/A"].trim() !== "" && (
                                                 <div
-                                                    key={score}
-                                                    onClick={() => handleScoreChange(q.id, score)}
+                                                    onClick={() => !q.isHidden && handleScoreChange(q.id, -1)}
                                                     className={`
-                            group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col
-                            ${isSelected
-                                                            ? 'border-blue-600 bg-blue-50/50 shadow-md transform scale-[1.02]'
-                                                            : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm'}
-                          `}
+                                                        group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col md:col-span-2 lg:col-span-1
+                                                        ${currentScore === -1
+                                                            ? 'border-slate-500 bg-slate-100 shadow-md transform scale-[1.02]'
+                                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}
+                                                    `}
                                                 >
                                                     <div className="flex justify-between items-start mb-2">
                                                         <div className={`
-                               w-6 h-6 rounded-full border-2 flex items-center justify-center
-                               ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 group-hover:border-blue-400'}
-                             `}>
-                                                            {isSelected && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
+                                                            w-6 h-6 rounded-full border-2 flex items-center justify-center
+                                                            ${currentScore === -1 ? 'border-slate-600 bg-slate-600' : 'border-slate-300 group-hover:border-slate-400'}
+                                                        `}>
+                                                            {currentScore === -1 && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
                                                         </div>
                                                         <span className={`text-xs font-bold px-2 py-0.5 rounded-md
-                               ${isSelected ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'}
-                             `}>
-                                                            {score} คะแนน
+                                                            ${currentScore === -1 ? 'bg-slate-300 text-slate-900' : 'bg-slate-100 text-slate-500'}
+                                                        `}>
+                                                            N/A
                                                         </span>
                                                     </div>
-                                                    <p className={`text-sm leading-snug flex-1 whitespace-pre-line ${isSelected ? 'text-blue-900' : 'text-slate-600'}`}>
-                                                        {scoreText || "-"}
+                                                    <p className={`text-sm leading-snug flex-1 whitespace-pre-line ${currentScore === -1 ? 'text-slate-900' : 'text-slate-600'}`}>
+                                                        {q["N/A"]}
                                                     </p>
                                                 </div>
-                                            );
-                                        })}
+                                            )}
+                                        </div>
 
-                                        {/* N/A Option */}
-                                        {q["N/A"] && q["N/A"] !== "-" && q["N/A"].trim() !== "" && (
-                                            <div
-                                                onClick={() => handleScoreChange(q.id, -1)}
-                                                className={`
-                                group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col md:col-span-2 lg:col-span-1
-                                ${currentScore === -1
-                                                        ? 'border-slate-500 bg-slate-100 shadow-md transform scale-[1.02]'
-                                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}
-                            `}
-                                            >
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div className={`
-                                    w-6 h-6 rounded-full border-2 flex items-center justify-center
-                                    ${currentScore === -1 ? 'border-slate-600 bg-slate-600' : 'border-slate-300 group-hover:border-slate-400'}
-                                `}>
-                                                        {currentScore === -1 && <div className="w-2.5 h-2.5 bg-white rounded-full" />}
-                                                    </div>
-                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md
-                                    ${currentScore === -1 ? 'bg-slate-300 text-slate-900' : 'bg-slate-100 text-slate-500'}
-                                `}>
-                                                        N/A
-                                                    </span>
+                                        {showUpload && !q.isHidden && (
+                                            <div className="space-y-4 bg-slate-50 rounded-xl p-5 border-2 border-slate-100 mb-6">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                                                        <Upload size={18} />
+                                                        หลักฐานประกอบการพิจารณา
+                                                    </h4>
                                                 </div>
-                                                <p className={`text-sm leading-snug flex-1 whitespace-pre-line ${currentScore === -1 ? 'text-slate-900' : 'text-slate-600'}`}>
-                                                    {q["N/A"]}
-                                                </p>
+
+                                                {Array.from({ length: isSpecial ? 1 : currentScore }, (_, i) => isSpecial ? 0 : i + 1).map((level) => (
+                                                    <div key={level} className="p-4 rounded-lg bg-white border border-slate-200 shadow-sm">
+                                                        <div className="text-xs font-bold uppercase text-blue-600 mb-2">
+                                                            {isSpecial ? "ไฟล์หลักฐาน (รวม)" : `เกณฑ์ระดับ ${level} คะแนน`}
+                                                        </div>
+                                                        {!isSpecial && (
+                                                            <p className="text-sm text-slate-700 leading-snug whitespace-pre-line mb-4">
+                                                                {q[level.toString() as "1" | "2" | "3"] || "ไม่มีรายละเอียด"}
+                                                            </p>
+                                                        )}
+
+                                                        <div className="grid grid-cols-1 gap-2">
+                                                            {Array.from({ length: 3 }).map((_, slotIdx) => {
+                                                                const existing = qExistingFiles[level]?.[slotIdx];
+                                                                const newVal = qFiles[level]?.[slotIdx];
+                                                                const fieldKey = `file_${level}_${slotIdx + 1}`;
+                                                                const isMarkedDeleted = (deletedFileKeys[q.id] || []).includes(fieldKey);
+
+                                                                return (
+                                                                    <div key={slotIdx} className="flex items-center justify-between bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
+                                                                        <div className="flex items-center gap-2 overflow-hidden flex-1">
+                                                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase">Slot {slotIdx + 1}</span>
+                                                                            {newVal ? (
+                                                                                <span className="text-xs text-blue-600 font-medium truncate italic">ไฟล์ที่ {slotIdx + 1} (รอส่ง)</span>
+                                                                            ) : (existing && !isMarkedDeleted) ? (
+                                                                                <span className="text-xs text-emerald-700 font-medium truncate">ไฟล์เดิมที่ {slotIdx + 1}</span>
+                                                                            ) : (
+                                                                                <span className="text-xs text-slate-400 italic">ว่าง</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-1">
+                                                                            {(existing && !isMarkedDeleted && existing.path) && (
+                                                                                <button onClick={() => !q.isHidden && handleViewFile(existing.path)} type="button" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded">
+                                                                                    <FileIcon size={14} />
+                                                                                </button>
+                                                                            )}
+                                                                            {(newVal || (existing && !isMarkedDeleted)) ? (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        if (newVal) removeNewFile(q.id, level, slotIdx);
+                                                                                        else handleRemoveExistingFile(q.id, level, slotIdx, existing!.path);
+                                                                                    }}
+                                                                                    type="button"
+                                                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                                                                                >
+                                                                                    <X size={14} />
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={() => !q.isHidden && fileInputRefs.current[`${q.id}_${level}_${slotIdx}`]?.click()}
+                                                                                    type="button"
+                                                                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                                                                >
+                                                                                    <Upload size={14} />
+                                                                                    <input
+                                                                                        type="file"
+                                                                                        className="hidden"
+                                                                                        ref={el => { fileInputRefs.current[`${q.id}_${level}_${slotIdx}`] = el; }}
+                                                                                        onChange={(e) => handleFileChange(q.id, level, slotIdx, e)}
+                                                                                    />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {!q.isHidden && (
+                                            <div className="flex justify-end pt-4 border-t border-slate-100">
+                                                <button
+                                                    onClick={() => !q.isHidden && handleSaveQuestion(q.id, q.no)}
+                                                    disabled={savingId === q.id}
+                                                    className={`
+                                                        flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-all
+                                                        ${isSaved
+                                                            ? 'bg-green-100 text-green-700 cursor-default'
+                                                            : 'bg-slate-800 text-white hover:bg-slate-900 shadow-lg hover:shadow-xl'}
+                                                    `}
+                                                >
+                                                    {isSaved ? (
+                                                        <>
+                                                            <CheckCircle size={18} /> บันทึกแล้ว
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Save size={18} /> บันทึกข้อนี้
+                                                        </>
+                                                    )}
+                                                </button>
                                             </div>
                                         )}
                                     </div>
-
-                                    {/* Cumulative Upload Section */}
-                                    {showUpload && (
-                                        <div className="space-y-4 bg-slate-50 rounded-xl p-5 border-2 border-slate-100 mb-6">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h4 className="font-semibold text-slate-700 flex items-center gap-2">
-                                                    <Upload size={18} />
-                                                    หลักฐานประกอบการพิจารณา
-                                                </h4>
-                                            </div>
-
-                                            {Array.from({ length: isSpecial ? 1 : currentScore }, (_, i) => isSpecial ? 0 : i + 1).map((level) => (
-                                                <div key={level} className="p-4 rounded-lg bg-white border border-slate-200 shadow-sm">
-                                                    <div className="text-xs font-bold uppercase text-blue-600 mb-2">
-                                                        {isSpecial ? "ไฟล์หลักฐาน (รวม)" : `เกณฑ์ระดับ ${level} คะแนน`}
-                                                    </div>
-                                                    {!isSpecial && (
-                                                        <p className="text-sm text-slate-700 leading-snug whitespace-pre-line mb-4">
-                                                            {q[level.toString() as "1" | "2" | "3"] || "ไม่มีรายละเอียด"}
-                                                        </p>
-                                                    )}
-
-                                                    <div className="grid grid-cols-1 gap-2">
-                                                        {Array.from({ length: isSpecial ? 5 : 3 }).map((_, slotIdx) => {
-                                                            const existing = qExistingFiles[level]?.[slotIdx];
-                                                            const newVal = qFiles[level]?.[slotIdx];
-                                                            const fieldKey = `file_${level}_${slotIdx + 1}`;
-                                                            const isMarkedDeleted = (deletedFileKeys[q.id] || []).includes(fieldKey);
-
-                                                            return (
-                                                                <div key={slotIdx} className="flex items-center justify-between bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
-                                                                    <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase">Slot {slotIdx + 1}</span>
-                                                                        {newVal ? (
-                                                                            <span className="text-xs text-blue-600 font-medium truncate italic">ไฟล์ที่ {slotIdx + 1} (รอส่ง)</span>
-                                                                        ) : (existing && !isMarkedDeleted) ? (
-                                                                            <span className="text-xs text-emerald-700 font-medium truncate">ไฟล์เดิมที่ {slotIdx + 1}</span>
-                                                                        ) : (
-                                                                            <span className="text-xs text-slate-400 italic">ว่าง</span>
-                                                                        )}
-                                                                    </div>
-
-                                                                    <div className="flex items-center gap-1">
-                                                                        {(existing && !isMarkedDeleted && existing.path) && (
-                                                                            <button onClick={() => handleViewFile(existing.path)} type="button" className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded">
-                                                                                <FileIcon size={14} />
-                                                                            </button>
-                                                                        )}
-                                                                        {(newVal || (existing && !isMarkedDeleted)) ? (
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    if (newVal) removeNewFile(q.id, level, slotIdx);
-                                                                                    else handleRemoveExistingFile(q.id, level, slotIdx, existing!.path);
-                                                                                }}
-                                                                                type="button"
-                                                                                className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                                                                            >
-                                                                                <X size={14} />
-                                                                            </button>
-                                                                        ) : (
-                                                                            <button
-                                                                                onClick={() => fileInputRefs.current[`${q.id}_${level}_${slotIdx}`]?.click()}
-                                                                                type="button"
-                                                                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                                                                            >
-                                                                                <Upload size={14} />
-                                                                                <input
-                                                                                    type="file"
-                                                                                    className="hidden"
-                                                                                    ref={el => { fileInputRefs.current[`${q.id}_${level}_${slotIdx}`] = el; }}
-                                                                                    onChange={(e) => handleFileChange(q.id, level, slotIdx, e)}
-                                                                                />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Per Question Save Button */}
-                                    <div className="flex justify-end pt-4 border-t border-slate-100">
-                                        <button
-                                            onClick={() => handleSaveQuestion(q.id, q.no)}
-                                            disabled={savingId === q.id}
-                                            className={`
-                            flex items-center gap-2 px-6 py-2 rounded-xl font-bold transition-all
-                            ${isSaved
-                                                    ? 'bg-green-100 text-green-700 cursor-default'
-                                                    : 'bg-slate-800 text-white hover:bg-slate-900 shadow-lg hover:shadow-xl'}
-                        `}
-                                        >
-                                            {isSaved ? (
-                                                <>
-                                                    <CheckCircle size={18} /> บันทึกแล้ว
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Save size={18} /> บันทึกข้อนี้
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
-
                                 </div>
                             );
                         })}

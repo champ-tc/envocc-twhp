@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useFactoryAuth } from "@/components/FactoryLayout";
 import QuestionForm from './QuestionForm';
 import type { NormalizedUser } from "@/lib/auth-utils";
@@ -28,6 +28,8 @@ interface Question {
     question: string;
     "N/A": string;
     special?: string;
+    isHidden?: boolean;
+    standardCount?: number;
 }
 
 interface QuestionPageClientProps {
@@ -48,13 +50,17 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
     const [fetchedData, setFetchedData] = useState<{ answers: Record<string, number>, files: Record<string, Record<number, { name: string, path: string }[]>> }>({ answers: {}, files: {} });
     const [showInstructions, setShowInstructions] = useState(true);
 
+    const hasFetched = useRef(false);
+
     const fetchAnswers = useCallback(async () => {
         try {
             const aRes = await fetch("/api/factories/assessments/answers", { credentials: "include" });
             if (aRes.ok) {
                 const answersData = await aRes.json();
+                console.log("Answers Data:", answersData);
                 const ansMap: Record<string, number> = {};
                 const filesMap: Record<string, Record<number, { name: string, path: string }[]>> = {};
+                const standardPassedIds: Record<string, number> = {}; // { qId: count }
 
                 if (Array.isArray(answersData)) {
                     answersData.forEach((a: any) => {
@@ -67,7 +73,25 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                                 ansMap[qId] = Number(val);
                             }
 
+                            // Check for standard-passed data in the answer
+                            if (Array.isArray(a.standard) && a.standard.length > 0) {
+                                standardPassedIds[qId] = a.standard.length;
+                            }
+
                             const qFiles: Record<number, { name: string, path: string }[]> = {};
+                            
+                            // Process standard files if present
+                            if (Array.isArray(a.standard)) {
+                                a.standard.forEach((s: any) => {
+                                    if (s && typeof s === 'object' && s.fileUrl) {
+                                        const targetLevel = SPECIAL_QUESTIONS.includes(qId) ? 0 : 3; // Standard usually counts as top level (3)
+                                        if (!qFiles[targetLevel]) qFiles[targetLevel] = [];
+                                        const fileName = s.fileName || s.fileUrl.split("/").pop() || "มาตรฐานเทียบเคียง";
+                                        qFiles[targetLevel].push({ name: fileName, path: s.fileUrl });
+                                    }
+                                });
+                            }
+
                             Object.entries(a).forEach(([key, value]) => {
                                 if (key.startsWith("fileUrl") && value && typeof value === "string") {
                                     const sub = key.replace("fileUrl", "");
@@ -91,6 +115,20 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
                     });
                 }
                 setFetchedData({ answers: ansMap, files: filesMap });
+
+                // Update questions state to reflect isHidden based on answer data
+                if (Object.keys(standardPassedIds).length > 0) {
+                    setQuestions(prev => prev.map(q => {
+                        if (standardPassedIds[q.id] !== undefined) {
+                            return { 
+                                ...q, 
+                                isHidden: true, 
+                                standardCount: standardPassedIds[q.id] 
+                            };
+                        }
+                        return q;
+                    }));
+                }
             }
         } catch (e) {
             console.error("Failed to fetch initial answers:", e);
@@ -98,53 +136,114 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
     }, []);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user || hasFetched.current) return;
+        hasFetched.current = true;
 
         const fetchData = async () => {
             try {
-                // Fetch Questions
+                // 1. Fetch Enrollment to see which standards are active
+                const enrollRes = await fetch("/api/factories/enrolls", { credentials: "include", cache: "no-store" });
+                let activeStandards: Set<string> = new Set();
+                let enrollFiles: Record<string, string> = {}; // { standardKey: fileUrl }
+
+                const possibleStandards = [
+                    "standardHc", "standardSan", "standardSanPlus", "standardWellness", 
+                    "standardSafety", "standardTis18001", "standardIso45001", "standardIso14001", 
+                    "standardZero", "standard5S", "standardHas"
+                ];
+
+                if (enrollRes.ok) {
+                    const enrollData = await enrollRes.json();
+                    let enroll = enrollData?.enroll || (Array.isArray(enrollData) ? enrollData[0] : enrollData);
+                    if (enroll && typeof enroll === 'object') {
+                        const v = (c: string, s: string) => enroll[c] ?? enroll[s];
+                        
+                        possibleStandards.forEach(s => {
+                            const snake = s.replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`);
+                            const val = v(s, snake);
+                            if (!!val) {
+                                activeStandards.add(s);
+                                // Also add short version (e.g., standardHc -> Hc)
+                                activeStandards.add(s.replace(/^standard/, ""));
+                                // Also add lowercase version
+                                activeStandards.add(s.toLowerCase());
+                                activeStandards.add(s.replace(/^standard/, "").toLowerCase());
+
+                                // Capture file URL
+                                const fileKey = `${s}Url`;
+                                const fileSnake = `file_${s.replace(/^standard/, "").replace(/[A-Z]/g, (l) => `_${l.toLowerCase()}`).replace(/^_/, "")}_url`;
+                                // Special case for fileStandardTis18001Url etc based on user's example
+                                const fileKeyExact = `file${s.charAt(0).toUpperCase()}${s.slice(1)}Url`;
+                                
+                                const fileurl = v(fileKeyExact, fileSnake) || v(fileKey, "");
+                                if (fileurl) {
+                                    enrollFiles[s] = fileurl;
+                                }
+                            }
+                        });
+                    }
+                }
+
+                // 2. Fetch Questions
                 const qRes = await fetch("/api/factories/assessments/questions", { credentials: "include" });
                 const apiQuestions = (await qRes.json()) as ApiQuestion[];
+                console.log("Questions API Response:", apiQuestions); // For debugging standard keys
 
                 // Transform API questions to UI format
-                const transformed: Question[] = (Array.isArray(apiQuestions) ? apiQuestions : []).map((q, index) => {
-                    const noStr = q.id === -2147483648 ? (index + 1).toString() : q.id.toString();
+                const transformed: Question[] = (Array.isArray(apiQuestions) ? apiQuestions : [])
+                    .map((q, index) => {
+                        const noStr = q.id === -2147483648 ? (index + 1).toString() : q.id.toString();
 
-                    let starVal = "";
-                    const s = q.standard;
-                    const sp = q.special;
-
-                    const getStars = (v: any): string => {
-                        if (v === 1 || v === "1" || v === "*") return "*";
-                        if (v === 2 || v === "2" || v === "**") return "**";
-                        if (v === 3 || v === "3" || v === "***") return "***";
-                        if (Array.isArray(v)) {
-                            if (v.includes(1) || v.includes("1") || v.includes("*")) return "*";
-                            if (v.includes(2) || v.includes("2") || v.includes("**")) return "**";
-                            if (v.includes(3) || v.includes("3") || v.includes("***")) return "***";
+                        // Check if any of this question's standards are active in enrollment
+                        let enrollHidden = false;
+                        let matchedStandardKey = "";
+                        if (Array.isArray(q.standard)) {
+                            q.standard.forEach((s: any) => {
+                                const sStr = String(s);
+                                if (activeStandards.has(sStr) || activeStandards.has(sStr.toLowerCase())) {
+                                    enrollHidden = true;
+                                    matchedStandardKey = sStr;
+                                }
+                            });
                         }
-                        return "";
-                    };
 
-                    starVal = getStars(s) || getStars(sp);
+                        let starVal = "";
+                        const s = q.standard;
+                        const sp = q.special;
 
-                    return {
-                        "0": "ไม่มีการดำเนินการ",
-                        "1": q.choice1,
-                        "2": q.choice2,
-                        "3": q.choice3 || "-",
-                        type: q.category,
-                        no: noStr,
-                        id: noStr,
-                        originalId: q.id,
-                        question: q.questionText,
-                        "N/A": q.choiceNA || "-",
-                        special: starVal
-                    };
-                });
+                        const getStars = (v: any): string => {
+                            if (v === 1 || v === "1" || v === "*") return "*";
+                            if (v === 2 || v === "2" || v === "**") return "**";
+                            if (v === 3 || v === "3" || v === "***") return "***";
+                            if (Array.isArray(v)) {
+                                if (v.includes(1) || v.includes("1") || v.includes("*")) return "*";
+                                if (v.includes(2) || v.includes("2") || v.includes("**")) return "**";
+                                if (v.includes(3) || v.includes("3") || v.includes("***")) return "***";
+                            }
+                            return "";
+                        };
+
+                        starVal = getStars(s) || getStars(sp);
+
+                        return {
+                            "0": "ไม่มีการดำเนินการ",
+                            "1": q.choice1,
+                            "2": q.choice2,
+                            "3": q.choice3 || "-",
+                            type: q.category,
+                            no: noStr,
+                            id: noStr,
+                            originalId: q.id,
+                            question: q.questionText,
+                            "N/A": q.choiceNA || "-",
+                            special: starVal,
+                            isHidden: enrollHidden,
+                            standardCount: enrollHidden ? 1 : 0
+                        };
+                    });
                 setQuestions(transformed);
 
-                // Fetch Answers
+                // 3. Fetch Answers
                 await fetchAnswers();
             } catch (err) {
                 console.error("Fetch Data Error:", err);
@@ -187,11 +286,11 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
 
     return (
         <div className="max-w-5xl mx-auto">
-            <div className="mb-8">
+            <div className="mb-4">
                 <h1 className="text-2xl font-bold text-slate-800">แบบประเมินตนเอง</h1>
                 <p className="text-slate-600 mt-2">กรุณาประเมินตามความเป็นจริง เพื่อการพัฒนาสถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข</p>
             </div>
-            <div className="mb-6 flex justify-end">
+            <div className="mb-2 flex justify-end">
                 <button
                     onClick={() => setShowInstructions(true)}
                     className="text-blue-600 hover:text-blue-800 underline text-sm font-medium flex items-center gap-1"

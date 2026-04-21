@@ -27,9 +27,7 @@ interface AdminAssessDetailClientProps {
 type AuthUser = {
     id: number;
     role: string;
-    username: string;
     fullName: string;
-    establishment: string;
     level?: string;
 };
 
@@ -82,8 +80,6 @@ export default function AdminAssessDetailClient({ factory, questions, factoryId 
                         title="ระบบประเมินสถานประกอบการปลอดโรค ปลอดภัย กายใจเป็นสุข"
                         fullName={user.fullName}
                         userRole={user.role}
-                        establishment={user.establishment}
-                        username={user.username}
                     />
 
                     <div className="flex-1 flex items-center justify-center">
@@ -106,8 +102,6 @@ export default function AdminAssessDetailClient({ factory, questions, factoryId 
                     title="ประเมินสถานประกอบการ"
                     fullName={user.fullName}
                     userRole={user.role}
-                    establishment={user.establishment}
-                    username={user.username}
                 />
 
                 <main className="flex-1 overflow-auto">

@@ -104,8 +104,6 @@ export default function AdminLayout({
             title={title}
             fullName={user.fullName}
             userRole={user.role}
-            establishment={user.establishment}
-            username={user.username}
           />
 
           <main className="flex-1 overflow-auto p-8">{children}</main>

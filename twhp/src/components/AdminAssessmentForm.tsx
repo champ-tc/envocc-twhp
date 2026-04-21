@@ -40,9 +40,7 @@ const DEPT_PERMISSIONS = {
 type AuthUser = {
     id: number;
     role: string;
-    username: string;
     fullName: string;
-    establishment: string;
     level?: string; // Added level
 };
 

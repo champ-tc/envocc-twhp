@@ -12,9 +12,16 @@ export async function GET(request: NextRequest) {
     }
 
     try {
+        const validated = request.nextUrl.searchParams.get("validated") ?? "true";
         const qs = request.nextUrl.searchParams.toString();
+
+        // Remove validated from qs if it exists to avoid duplication
+        const params = new URLSearchParams(qs);
+        params.delete("validated");
+        const remainingQs = params.toString();
+
         const base = baseUrl.replace(/\/+$/, "");
-        const targetUrl = `${base}/provincialOfficers/factories?validated=true${qs ? `&${qs}` : ""}`;
+        const targetUrl = `${base}/provincialOfficers/factories?validated=${validated}${remainingQs ? `&${remainingQs}` : ""}`;
 
         const headersObj = forwardHeaders(request);
 

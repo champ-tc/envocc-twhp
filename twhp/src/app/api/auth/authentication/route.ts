@@ -34,7 +34,6 @@ export async function GET(request: NextRequest) {
     }
 
     const raw = (await res.json()) as RawAuthResponse;
-
     return NextResponse.json({
       isLoggedIn: true,
       user: normalizeUserData(raw),

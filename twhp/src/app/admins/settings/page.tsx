@@ -12,7 +12,7 @@ export default function AdminSettingsPage() {
     <div className="bg-white p-6 text-gray-800 rounded-lg shadow">
       หน้าตั้งค่า (Coming Soon)
       <div className="mt-2 text-sm text-gray-600">
-        ยินดีต้อนรับ {user.fullName || user.username}
+        ยินดีต้อนรับ {user.fullName}
       </div>
     </div>
   );

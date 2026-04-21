@@ -107,6 +107,11 @@ export default function Sidebar({ userRole }: SidebarProps) {
               label="สปก. ที่สมัครโครงการ"
               path="/admins/assess"
             />
+            {/* <MenuBtn
+              icon={Users}
+              label="จัดการสถานประกอบการ"
+              path="/admins/factories-list"
+            /> */}
             {/* <p className="px-3 text-xs text-gray-400 uppercase">ผู้ดูแลระบบ</p> */}
             {/* <MenuBtn icon={Users} label="จัดการสมาชิก" path="/admins/officer" /> */}
             {/* <MenuBtn icon={BarChart} label="ภาพรวม" path="/admins/dashboard" /> */}
