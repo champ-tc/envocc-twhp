@@ -24,8 +24,8 @@ export const GoldShield: React.FC<GoldShieldProps> = ({ years, size = 24, classN
     return (
         <div className={`relative inline-flex items-center justify-center ${className}`} title={`โล่ทองต่อเนื่อง ${years} ปี`}>
             <Trophy className={`${goldColor} drop-shadow-md`} size={size} />
-            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm flex items-center gap-0.5">
-                {years} <span className="text-[8px] font-normal">ปี</span>
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xxs font-bold px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm flex items-center gap-0.5">
+                {years} <span className="text-xxxs font-normal">ปี</span>
             </div>
             {/* Optional: Add stars or other decorations based on years if needed */}
             {years >= 6 && (

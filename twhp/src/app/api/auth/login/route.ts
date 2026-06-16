@@ -20,7 +20,7 @@ function mapLoginMessage(raw: unknown): string {
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for") || "unknown";
-  const limitError = rateLimit(ip, { limit: 5, windowMs: 60000 });
+  const limitError = rateLimit(ip, { limit: 5, windowMs: 60000, group: "login" });
   if (limitError) return limitError;
 
   try {
@@ -61,6 +61,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message }, { status });
     }
 
+    if (data?.twoFactorRequired || data?.two_factor_required) {
+      const challengeId = String(data.challengeId ?? data.challenge_id ?? data.challengeid ?? "");
+      const emailMasked =
+        data.emailMasked ?? data.email_masked ?? data.email ?? "";
+
+      return NextResponse.json({
+        success: true,
+        twoFactorRequired: true,
+        challengeId,
+        emailMasked,
+        message: data.message ?? "กรุณากรอกรหัส OTP ที่ส่งไปยังอีเมลของคุณ",
+      });
+    }
+
     if (!data?.user) {
       return NextResponse.json(
         { success: false, message: "เข้าสู่ระบบไม่สำเร็จ" },
@@ -71,7 +85,7 @@ export async function POST(request: NextRequest) {
     const res = NextResponse.json({
       success: true,
       user: normalizeUserData(data.user as RawAuthResponse),
-      redirectUrl: ["Provincial", "Provicial", "Evaluator", "DOED"].includes(
+      redirectUrl: ["Provincial", "Provicial", "Evaluator", "DOED", "ODPC"].includes(
         data.user.role,
       )
         ? "/admins/main"
@@ -103,7 +117,7 @@ export async function POST(request: NextRequest) {
       if (!secureCookie.toLowerCase().includes("httponly")) secureCookie += "; HttpOnly";
       if (!secureCookie.toLowerCase().includes("secure")) secureCookie += "; Secure";
       if (!secureCookie.toLowerCase().includes("samesite")) secureCookie += "; SameSite=Lax";
-      
+
       res.headers.append("set-cookie", secureCookie);
     }
 

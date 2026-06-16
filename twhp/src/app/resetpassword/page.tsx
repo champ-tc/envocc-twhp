@@ -112,21 +112,21 @@ function ResetPasswordContent() {
   };
 
   const inputBase =
-    "w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-[#2E8B57] text-gray-800 placeholder-gray-400 bg-gray-50 focus:bg-white transition";
+    "w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-brand text-gray-800 placeholder-gray-400 bg-gray-50 focus:bg-white transition";
   const labelBase = "text-sm font-medium text-gray-700 ml-1 block mb-2";
   const toggleBtn =
     "absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none";
 
   return (
-    <div className="min-h-screen bg-[#F3F6F4] flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-page-soft flex items-center justify-center p-6 relative overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-full h-1/2 bg-[#2E8B57] opacity-10 rounded-b-[50%] -translate-y-1/2" />
+      <div className="absolute top-0 left-0 w-full h-1/2 bg-brand opacity-10 rounded-bottom-half -translate-y-1/2" />
 
       <div className="bg-white p-8 md:p-10 rounded-3xl shadow-xl w-full max-w-lg border border-gray-100 relative z-10 overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-2 bg-[#2E8B57]" />
+        <div className="absolute top-0 left-0 w-full h-2 bg-brand" />
 
         <div className="text-center mb-8 relative z-10">
-          <div className="w-16 h-16 bg-green-100 text-[#2E8B57] rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-green-100 text-brand rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock size={32} />
           </div>
           <h1 className="text-2xl font-bold text-gray-800">เปลี่ยนรหัสผ่านใหม่</h1>
@@ -145,7 +145,7 @@ function ResetPasswordContent() {
             </div>
             <button
               onClick={() => router.push("/")}
-              className="w-full bg-[#2E8B57] hover:bg-[#257a4a] text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full bg-brand hover:bg-brand-hover text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
             >
               กลับไปหน้าเข้าสู่ระบบ
             </button>
@@ -228,7 +228,7 @@ function ResetPasswordContent() {
             <button
               type="submit"
               disabled={isLoading || !token || !password || !confirmPassword || !pwInfo.allOk || !pwMatchOk}
-              className="w-full bg-[#2E8B57] hover:bg-[#257a4a] text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-brand hover:bg-brand-hover text-white font-bold py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -259,7 +259,7 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F3F6F4] flex items-center justify-center"><Loader2 className="animate-spin text-[#2E8B57]" size={32} /></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-page-soft flex items-center justify-center"><Loader2 className="animate-spin text-brand" size={32} /></div>}>
       <ResetPasswordContent />
     </Suspense>
   );

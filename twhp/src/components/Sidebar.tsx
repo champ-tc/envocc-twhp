@@ -47,7 +47,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
       <button
         onClick={() => router.push(path)}
         className={`w-full flex items-center p-3 rounded-xl transition-all ${isActive
-          ? "bg-[#2E8B57]/10 text-[#2E8B57] font-bold"
+          ? "bg-brand/10 text-brand font-bold"
           : "hover:bg-gray-50 text-gray-600"
           }`}
       >
@@ -59,11 +59,11 @@ export default function Sidebar({ userRole }: SidebarProps) {
 
   return (
     <aside className="w-64 bg-white text-gray-800 flex flex-col shadow-xl z-30 border-r border-gray-200 h-screen sticky top-0">
-      <div className="h-24 flex flex-col items-center justify-center border-b border-gray-100 px-4 bg-[#2E8B57] text-white">
+      <div className="h-24 flex flex-col items-center justify-center border-b border-gray-100 px-4 bg-brand text-white">
         <div className="flex items-center gap-2 font-bold text-xl">
           <ShieldCheck className="fill-current" /> TWHP
         </div>
-        <span className="text-[10px] opacity-80 mt-1">
+        <span className="text-xxs opacity-80 mt-1">
           ปลอดโรค ปลอดภัย กายใจเป็นสุข
         </span>
       </div>

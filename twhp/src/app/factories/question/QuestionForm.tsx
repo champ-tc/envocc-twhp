@@ -387,16 +387,16 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4 w-full sm:w-auto">
                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-emerald-200 shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                <CheckCircle size={24} className="animate-[pulse_2s_infinite]" />
+                                <CheckCircle size={24} className="animate-pulse" />
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-slate-800">ความคืบหน้าการประเมิน</h3>
                                 <div className="flex flex-col">
-                                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                                    <p className="text-xxs text-slate-500 font-semibold uppercase tracking-wider">
                                         ประเมินแล้ว {progress} จาก {totalQuestions} ข้อ
                                     </p>
                                     {hiddenCount > 0 && (
-                                        <p className="text-[10px] text-emerald-600 font-bold">
+                                        <p className="text-xxs text-emerald-600 font-bold">
                                             (ผ่านการรับรองอัตโนมัติ {hiddenCount} ข้อ)
                                         </p>
                                     )}
@@ -409,16 +409,16 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                     <span className="text-3xl font-black text-emerald-600 tabular-nums tracking-tighter">{percentage}</span>
                                     <span className="text-sm font-bold text-emerald-500">%</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest leading-none">Complete</p>
+                                <p className="text-xxs text-slate-400 font-extrabold uppercase tracking-widest leading-none">Complete</p>
                             </div>
                         </div>
                     </div>
                     <div className="mt-5 h-4 w-full bg-slate-100/50 rounded-full overflow-hidden p-1 border border-slate-200 shadow-inner">
                         <div
-                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all duration-1000 ease-out relative"
+                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 shadow-progress transition-all duration-1000 ease-out relative"
                             style={{ width: `${percentage}%` }}
                         >
-                            <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] opacity-30 animate-[pulse_1.5s_infinite]" />
+                            <div className="progress-stripes absolute inset-0 opacity-30 animate-pulse" />
                         </div>
                     </div>
                 </div>
@@ -489,7 +489,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                                         className={`
                                                             group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col
                                                             ${isSelected
-                                                                ? 'border-blue-600 bg-blue-50/50 shadow-md transform scale-[1.02]'
+                                                                ? 'border-blue-600 bg-blue-50/50 shadow-md transform scale-105'
                                                                 : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-sm'}
                                                         `}
                                                     >
@@ -519,7 +519,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                                     className={`
                                                         group cursor-pointer rounded-xl p-4 border-2 relative transition-all duration-200 flex flex-col md:col-span-2 lg:col-span-1
                                                         ${currentScore === -1
-                                                            ? 'border-slate-500 bg-slate-100 shadow-md transform scale-[1.02]'
+                                                            ? 'border-slate-500 bg-slate-100 shadow-md transform scale-105'
                                                             : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'}
                                                     `}
                                                 >
@@ -573,7 +573,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
                                                                 return (
                                                                     <div key={slotIdx} className="flex items-center justify-between bg-slate-50/50 p-2 rounded-lg border border-dashed border-slate-200">
                                                                         <div className="flex items-center gap-2 overflow-hidden flex-1">
-                                                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase">Slot {slotIdx + 1}</span>
+                                                                            <span className="text-xxs font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded uppercase">Slot {slotIdx + 1}</span>
                                                                             {newVal ? (
                                                                                 <span className="text-xs text-blue-600 font-medium truncate italic">ไฟล์ที่ {slotIdx + 1} (รอส่ง)</span>
                                                                             ) : (existing && !isMarkedDeleted) ? (
@@ -658,7 +658,7 @@ export default function QuestionForm({ groupedQuestions, initialAnswers = {}, in
             ))}
 
             {/* Floating Action Bar */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-50">
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 shadow-sticky-footer z-50">
                 <div className="max-w-5xl mx-auto flex items-center justify-between">
                     <div className="hidden sm:block text-slate-600 text-sm">
                         {progress === totalQuestions
@@ -744,14 +744,14 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-file-preview flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
+            <div className="bg-white w-full max-w-5xl h-modal rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 text-[#2E8B57] rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-green-100 text-brand rounded-xl flex items-center justify-center">
                             <FileIcon size={20} />
                         </div>
                         <div>
@@ -762,7 +762,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleDownload}
-                            className="p-2.5 text-gray-500 hover:text-[#2E8B57] hover:bg-green-50 rounded-xl transition-colors"
+                            className="p-2.5 text-gray-500 hover:text-brand hover:bg-green-50 rounded-xl transition-colors"
                             title="ดาวน์โหลดไฟล์"
                         >
                             <Download size={20} />
@@ -780,7 +780,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
                 <div className="flex-1 bg-gray-100 relative min-h-0">
                     {isLoading && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white z-20">
-                            <Loader2 className="animate-spin text-[#2E8B57]" size={32} />
+                            <Loader2 className="animate-spin text-brand" size={32} />
                             <p className="text-sm font-medium text-gray-600">กำลังโหลดเอกสาร...</p>
                         </div>
                     )}
@@ -793,7 +793,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
                             <p className="text-sm font-medium text-gray-700">{error}</p>
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2 bg-[#2E8B57] text-white rounded-xl text-sm font-semibold hover:bg-[#257a4a] transition-colors"
+                                className="px-6 py-2 bg-brand text-white rounded-xl text-sm font-semibold hover:bg-brand-hover transition-colors"
                             >
                                 ปิด
                             </button>

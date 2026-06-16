@@ -191,7 +191,7 @@ export default function EstablishmentListPage() {
 
       <div className="p-5 md:p-6">
         <div className="overflow-auto border border-gray-200 rounded-xl">
-          <table className="min-w-[1000px] w-full text-sm">
+          <table className="min-w-table-lg w-full text-sm">
             <thead className="bg-gray-50 text-gray-900">
               <tr>
                 <th className="px-4 py-3 text-left border-b border-gray-200 w-1/3">
@@ -233,10 +233,10 @@ export default function EstablishmentListPage() {
                         {r.name_en || "-"}
                       </div>
                       <div className="mt-1 flex gap-2">
-                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-semibold">
+                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xxs font-semibold">
                           TSIC {r.tsic_code || "-"}
                         </span>
-                        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-[10px] font-semibold">
+                        <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xxs font-semibold">
                           ID {r.account_id}
                         </span>
                       </div>

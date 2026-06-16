@@ -595,7 +595,7 @@ export default function UserMainPage() {
 
   return (
     <>
-      <div className="bg-[#2E8B57] p-8 rounded-3xl text-white shadow-sm">
+      <div className="bg-brand p-8 rounded-3xl text-white shadow-sm">
             <div className="text-xl font-semibold">สวัสดี {user.fullName}</div>
             <div className="mt-2 opacity-95">
               กรุณาดำเนินการสมัครเข้าร่วมโครงการ
@@ -616,22 +616,31 @@ export default function UserMainPage() {
                   </div>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     {coverStatus === "in_review" ? (
-                      <div className="bg-emerald-100 text-emerald-800 px-10 py-4 rounded-2xl font-bold border-2 border-emerald-200 flex items-center gap-2 text-lg shadow-sm">
-                        <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                        ประเมินเรียบร้อยแล้ว
-                      </div>
+                      <>
+                        <div className="bg-emerald-100 text-emerald-800 px-10 py-4 rounded-2xl font-bold border-2 border-emerald-200 flex items-center gap-2 text-lg shadow-sm">
+                          <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
+                          ประเมินเรียบร้อยแล้ว
+                        </div>
+                        <button
+                          onClick={() => router.push("/factories/summary")}
+                          className="bg-brand text-white px-8 py-3 rounded-2xl font-bold hover:bg-brand-dark transition-all shadow-md active:scale-95 flex items-center gap-2"
+                        >
+                          <ExternalLink size={18} />
+                          ดูคะแนนรวม
+                        </button>
+                      </>
                     ) : (
                       <>
                         <button
                           onClick={handleCreateCover}
                           disabled={isCreatingCover}
-                          className="bg-[#2E8B57] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#246e45] transition-all shadow-md active:scale-95 disabled:opacity-50"
+                          className="bg-brand text-white px-8 py-3 rounded-2xl font-bold hover:bg-brand-dark transition-all shadow-md active:scale-95 disabled:opacity-50"
                         >
                           {isCreatingCover ? "กำลังดำเนินการ..." : (hasCover ? "เข้าทำแบบประเมิน" : "กดเพื่อสร้างแบบประเมิน")}
                         </button>
                         <button
                           onClick={handleEditEnrollment}
-                          className="text-[#2E8B57] border-2 border-[#2E8B57] px-8 py-3 rounded-2xl font-bold hover:bg-[#E9F7EF] transition-all active:scale-95"
+                          className="text-brand border-2 border-brand px-8 py-3 rounded-2xl font-bold hover:bg-brand-soft transition-all active:scale-95"
                         >
                           แก้ไขข้อมูลการสมัคร
                         </button>
@@ -639,8 +648,8 @@ export default function UserMainPage() {
                     )}
                   </div>
                   <div className="mt-6 pt-4 border-t border-gray-100">
-                    <p className="text-[#2E8B57] font-semibold flex items-center justify-center gap-2">
-                      <span className="w-2 h-2 bg-[#2E8B57] rounded-full animate-pulse" />
+                    <p className="text-brand font-semibold flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 bg-brand rounded-full animate-pulse" />
                       ด้านล่างมีแบบประเมินทั้งหมด 41 ข้อ
                     </p>
                   </div>
@@ -678,7 +687,7 @@ export default function UserMainPage() {
                   <div className="flex gap-3">
                     <Badge title="ชาย" value={totals.m} />
                     <Badge title="หญิง" value={totals.f} />
-                    <div className="rounded-2xl bg-[#E9F7EF] px-4 py-3 border border-[#BFE6D1]">
+                    <div className="rounded-2xl bg-brand-soft px-4 py-3 border border-brand-border">
                       <div className="text-xs text-black">รวม</div>
                       <div className="text-xl font-bold text-black">
                         {totals.all}
@@ -690,7 +699,7 @@ export default function UserMainPage() {
 
               <Card title="1) จำนวนพนักงาน (แยกประเทศ/ชาย/หญิง)">
                 <div className="overflow-x-auto rounded-2xl border border-gray-200">
-                  <table className="min-w-[700px] w-full bg-white">
+                  <table className="min-w-table-md w-full bg-white">
                     <thead className="bg-gray-50">
                       <tr>
                         {["ประเทศ", "ชาย", "หญิง", "รวม"].map((h) => (
@@ -778,7 +787,7 @@ export default function UserMainPage() {
                           <input
                             type="file"
                             accept=".pdf,application/pdf"
-                            className="text-xs w-full bg-white border border-gray-200 rounded-xl p-2 file:mr-2 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:bg-[#E9F7EF] file:text-[#277549] hover:file:bg-[#D1EBDC] cursor-pointer"
+                            className="text-xs w-full bg-white border border-gray-200 rounded-xl p-2 file:mr-2 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-xs file:bg-brand-soft file:text-brand-strong hover:file:bg-brand-soft-hover cursor-pointer"
                             onChange={(e) => {
                               const file = e.target.files?.[0] || null;
                               if (file) {
@@ -807,7 +816,7 @@ export default function UserMainPage() {
                             onClick={() => {
                               setPreviewFileName(fileNames[k]);
                             }}
-                            className="text-xs text-[#2E8B57] font-semibold hover:underline flex items-center gap-1.5 bg-[#E9F7EF] w-fit px-3 py-1.5 rounded-xl border border-[#BFE6D1] cursor-pointer"
+                            className="text-xs text-brand font-semibold hover:underline flex items-center gap-1.5 bg-brand-soft w-fit px-3 py-1.5 rounded-xl border border-brand-border cursor-pointer"
                           >
                             <FileText size={14} />
                             ดูไฟล์เดิมที่เคยอัปโหลด
@@ -909,7 +918,7 @@ export default function UserMainPage() {
                   disabled={submitting}
                   className={`rounded-2xl px-6 py-3 font-semibold text-white shadow-sm ${submitting
                     ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-[#2E8B57] hover:bg-[#277549]"
+                    : "bg-brand hover:bg-brand-strong"
                     }`}
                 >
                   {submitting ? "กำลังส่ง..." : "ส่งใบสมัคร"}
@@ -934,21 +943,21 @@ export default function UserMainPage() {
       {showNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="bg-[#E9F7EF] p-8 flex flex-col items-center text-center">
+            <div className="bg-brand-soft p-8 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-emerald-50">
-                <AlertCircle size={32} className="text-[#2E8B57]" />
+                <AlertCircle size={32} className="text-brand" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">แจ้งเตือนผู้เข้าร่วมโครงการ</h3>
               <p className="text-gray-600 text-sm leading-relaxed">
                 สถานประกอบการที่สมัครเข้าร่วมโครงการก่อนวันที่{" "}
-                <span className="font-bold text-[#2E8B57]">30 มีนาคม 2569</span>{" "}
+                <span className="font-bold text-brand">30 มีนาคม 2569</span>{" "}
                 ต้องไปแก้ไขข้อมูลการสมัครเข้าร่วมโครงการ และแนบไฟล์มาตรฐานก่อนทำแบบประเมินตนเอง
               </p>
             </div>
             <div className="p-6 bg-white flex flex-col gap-3">
               <button
                 onClick={handleHandleConfirmNotice}
-                className="w-full bg-[#2E8B57] text-white py-4 rounded-2xl font-bold text-lg hover:bg-[#246e45] transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+                className="w-full bg-brand text-white py-4 rounded-2xl font-bold text-lg hover:bg-brand-dark transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
               >
                 <CheckCircle2 size={20} />
                 รับทราบ
@@ -1012,14 +1021,14 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-file-preview flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
+      <div className="bg-white w-full max-w-5xl h-modal rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 text-[#2E8B57] rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-green-100 text-brand rounded-xl flex items-center justify-center">
               <FileText size={20} />
             </div>
             <div>
@@ -1030,7 +1039,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              className="p-2.5 text-gray-500 hover:text-[#2E8B57] hover:bg-green-50 rounded-xl transition-colors"
+              className="p-2.5 text-gray-500 hover:text-brand hover:bg-green-50 rounded-xl transition-colors"
               title="ดาวน์โหลดไฟล์"
             >
               <Download size={20} />
@@ -1048,7 +1057,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
         <div className="flex-1 bg-gray-100 relative min-h-0">
           {isLoading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white z-20">
-              <Loader2 className="animate-spin text-[#2E8B57]" size={32} />
+              <Loader2 className="animate-spin text-brand" size={32} />
               <p className="text-sm font-medium text-gray-600">กำลังโหลดเอกสาร...</p>
             </div>
           )}
@@ -1061,7 +1070,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
               <p className="text-sm font-medium text-gray-700">{error}</p>
               <button
                 onClick={onClose}
-                className="px-6 py-2 bg-[#2E8B57] text-white rounded-xl text-sm font-semibold hover:bg-[#257a4a] transition-colors"
+                className="px-6 py-2 bg-brand text-white rounded-xl text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
                 ปิด
               </button>
@@ -1126,7 +1135,7 @@ function TextField({
     <div>
       <div className="text-sm font-medium text-black">{label}</div>
       <input
-        className={`mt-2 w-full rounded-2xl border px-4 py-3 text-black outline-none focus:ring-2 focus:ring-[#2E8B57]/30 ${error ? "border-red-300" : "border-gray-200"
+        className={`mt-2 w-full rounded-2xl border px-4 py-3 text-black outline-none focus:ring-2 focus:ring-brand/30 ${error ? "border-red-300" : "border-gray-200"
           }`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1149,7 +1158,7 @@ function CheckItem({
     <label className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 text-black">
       <input
         type="checkbox"
-        className="h-4 w-4 accent-[#2E8B57]"
+        className="h-4 w-4 accent-brand"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
@@ -1171,7 +1180,7 @@ function IntInput({
       inputMode="numeric"
       min={0}
       step={1}
-      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-black outline-none focus:ring-2 focus:ring-[#2E8B57]/30"
+      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-black outline-none focus:ring-2 focus:ring-brand/30"
       value={value}
       onChange={(e) => onChange(toInt(e.target.value))}
       onBlur={(e) => onChange(toInt(e.target.value))}

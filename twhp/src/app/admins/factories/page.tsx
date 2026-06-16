@@ -172,7 +172,7 @@ export default function AdminFactoriesPage() {
 
       <div className="p-5 md:p-6">
         <div className="overflow-auto border border-gray-200 rounded-xl">
-          <table className="min-w-[1000px] w-full text-sm">
+          <table className="min-w-table-lg w-full text-sm">
             <thead className="bg-gray-50 text-gray-900">
               <tr>
                 <th className="px-4 py-3 text-left border-b border-gray-200">

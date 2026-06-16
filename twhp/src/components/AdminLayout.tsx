@@ -84,7 +84,7 @@ export default function AdminLayout({
     return (
       <div className="flex h-screen items-center justify-center bg-gray-100">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#2E8B57] border-t-transparent"></div>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand border-t-transparent"></div>
           <p className="text-gray-600 font-medium">กำลังโหลดข้อมูล...</p>
         </div>
       </div>
@@ -99,7 +99,7 @@ export default function AdminLayout({
         <ChangePasswordModal isOpen={showChangePwModal} userRole={user.role} />
         <Sidebar userRole={user.role} />
 
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#F3F6F4]">
+        <div className="flex-1 flex flex-col overflow-hidden bg-page-soft">
           <Navbar
             title={title}
             fullName={user.fullName}

@@ -19,3 +19,12 @@ export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
 });
+
+export const verifyOtpSchema = z.object({
+  challengeId: z.string().min(1, "Challenge ID is required"),
+  otpCode: z.string().min(1, "OTP code is required"),
+});
+
+export const resendOtpSchema = z.object({
+  challengeId: z.string().min(1, "Challenge ID is required"),
+});

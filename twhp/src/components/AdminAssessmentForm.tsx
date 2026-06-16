@@ -263,8 +263,8 @@ export default function AdminAssessmentForm({ questions, factory, user }: AdminA
                             <thead>
                                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 text-sm font-bold">
                                     <th className="p-4 w-16 text-center">ข้อ</th>
-                                    <th className="p-4 min-w-[300px]">หัวข้อ</th>
-                                    <th className="p-4 w-[250px]">ประเมินตนเอง</th>
+                                    <th className="p-4 min-w-question-title">หัวข้อ</th>
+                                    <th className="p-4 w-self-score">ประเมินตนเอง</th>
                                     <th className="p-4 w-32 text-center bg-orange-50/50 text-orange-800 border-l border-slate-200">ศูนย์อนามัย</th>
                                     <th className="p-4 w-32 text-center bg-purple-50/50 text-purple-800 border-l border-slate-200">ศูนย์สุขภาพจิต</th>
                                     <th className="p-4 w-32 text-center bg-blue-50/50 text-blue-800 border-l border-slate-200">สคร.</th>
@@ -334,7 +334,7 @@ export default function AdminAssessmentForm({ questions, factory, user }: AdminA
                                                         onChange={(e) => setComments({ ...comments, [q.no]: e.target.value })}
                                                         placeholder="ระบุหมายเหตุ..."
                                                         disabled={!(isAccessAllowed(q.no, 'health') || isAccessAllowed(q.no, 'mental') || isAccessAllowed(q.no, 'ddc'))}
-                                                        className={`w-full text-sm p-2 rounded border border-slate-200 min-h-[80px] focus:ring-2 focus:ring-blue-500/20 outline-none resize-y ${!(isAccessAllowed(q.no, 'health') || isAccessAllowed(q.no, 'mental') || isAccessAllowed(q.no, 'ddc'))
+                                                        className={`w-full text-sm p-2 rounded border border-slate-200 min-h-comment focus:ring-2 focus:ring-blue-500/20 outline-none resize-y ${!(isAccessAllowed(q.no, 'health') || isAccessAllowed(q.no, 'mental') || isAccessAllowed(q.no, 'ddc'))
                                                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                                                             : 'bg-white'
                                                             }`}

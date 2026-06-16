@@ -9,7 +9,7 @@ export default function UserMainPage() {
   if (isLoading || !user) return null;
 
   return (
-    <div className="bg-[#2E8B57] p-8 rounded-3xl text-white">
+    <div className="bg-brand p-8 rounded-3xl text-white">
       สวัสดี {user.fullName}
       <br />
       ท่านได้สมัครสมาชิกเรียบร้อยแล้ว

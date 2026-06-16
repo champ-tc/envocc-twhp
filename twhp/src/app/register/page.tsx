@@ -374,7 +374,7 @@ export default function RegisterPage() {
   }
 
   const inputBase =
-    "w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#2E8B57] text-black placeholder-gray-400";
+    "w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-brand text-black placeholder-gray-400";
   const labelBase = "text-xs font-semibold text-gray-600 mb-1 block";
   const errorText = "mt-1 text-xs text-red-600";
   const toggleBtn =
@@ -387,7 +387,7 @@ export default function RegisterPage() {
       <PDPAModal isOpen={showPdpa} onConfirm={() => setShowPdpa(false)} />
 
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row">
-        <div className="w-full md:w-1/3 bg-[#2E8B57] p-4 text-white flex flex-col justify-between">
+        <div className="w-full md:w-1/3 bg-brand p-4 text-white flex flex-col justify-between">
           <div>
             <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
               <ShieldCheck size={24} />
@@ -419,7 +419,7 @@ export default function RegisterPage() {
                   <input
                     type="radio"
                     name="factory_type"
-                    className="accent-[#2E8B57]"
+                    className="accent-brand"
                     checked={form.factory_type === 0}
                     onChange={() => setField("factory_type", 0)}
                   />
@@ -429,7 +429,7 @@ export default function RegisterPage() {
                   <input
                     type="radio"
                     name="factory_type"
-                    className="accent-[#2E8B57]"
+                    className="accent-brand"
                     checked={form.factory_type === 1}
                     onChange={() => setField("factory_type", 1)}
                   />
@@ -701,7 +701,7 @@ export default function RegisterPage() {
 
             <button
               disabled={submitting}
-              className="w-full py-3 bg-[#2E8B57] hover:bg-[#257045] disabled:opacity-60 text-white rounded-xl font-bold shadow-md transition"
+              className="w-full py-3 bg-brand hover:bg-brand-hover disabled:opacity-60 text-white rounded-xl font-bold shadow-md transition"
             >
               {submitting ? "กำลังส่ง..." : "ลงทะเบียน"}
             </button>

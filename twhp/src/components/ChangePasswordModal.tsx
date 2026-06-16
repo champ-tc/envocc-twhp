@@ -130,7 +130,7 @@ export default function ChangePasswordModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl max-h-modal overflow-y-auto">
         <h2 className="text-xl font-bold mb-4 text-gray-800">ตั้งค่าข้อมูลเพื่อความปลอดภัย</h2>
         <p className="text-sm text-gray-600 mb-6">
           กรุณาเพิ่มอีเมลเพื่อใช้สำหรับการรีเซ็ตรหัสผ่าน และเปลี่ยนรหัสผ่านใหม่เพื่อความปลอดภัยในการเข้าสู่ระบบครั้งต่อไป
@@ -149,7 +149,7 @@ export default function ChangePasswordModal({
             </label>
             <input
               type="email"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#2E8B57] outline-none"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-brand outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="example@mail.com"
@@ -164,7 +164,7 @@ export default function ChangePasswordModal({
             <div className="relative">
               <input
                 type={showPw ? "text" : "password"}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:ring-2 focus:ring-[#2E8B57] outline-none"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:ring-2 focus:ring-brand outline-none"
                 value={password}
                 maxLength={20}
                 onChange={(e) => setPassword(e.target.value)}
@@ -203,7 +203,7 @@ export default function ChangePasswordModal({
             <div className="relative">
               <input
                 type={showPw2 ? "text" : "password"}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:ring-2 focus:ring-[#2E8B57] outline-none"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:ring-2 focus:ring-brand outline-none"
                 value={confirmPassword}
                 maxLength={20}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -233,7 +233,7 @@ export default function ChangePasswordModal({
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#2E8B57] text-white mt-6 py-2 rounded-lg font-bold hover:bg-[#257045] disabled:opacity-50 transition"
+            className="w-full bg-brand text-white mt-6 py-2 rounded-lg font-bold hover:bg-brand-hover disabled:opacity-50 transition"
           >
             {loading ? "กำลังดำเนินการ..." : "บันทึกข้อมูลและรหัสผ่านใหม่"}
           </button>

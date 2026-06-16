@@ -13,9 +13,9 @@ export default function PDPAModal({ isOpen, onConfirm }: PDPAModalProps) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-modal overflow-hidden">
                 {/* Header */}
-                <div className="p-6 bg-[#2E8B57] text-white flex items-center gap-3">
+                <div className="p-6 bg-brand text-white flex items-center gap-3">
                     <FileText size={28} />
                     <h2 className="text-xl md:text-2xl font-bold">PDPA</h2>
                 </div>
@@ -155,7 +155,7 @@ export default function PDPAModal({ isOpen, onConfirm }: PDPAModalProps) {
                         disabled={!acknowledged}
                         onClick={onConfirm}
                         className={`px-8 py-3 rounded-xl font-bold text-white transition-all duration-200 shadow-md ${acknowledged
-                            ? "bg-[#2E8B57] hover:bg-[#257045] hover:scale-105"
+                            ? "bg-brand hover:bg-brand-hover hover:scale-105"
                             : "bg-gray-400 cursor-not-allowed opacity-70"
                             }`}
                     >

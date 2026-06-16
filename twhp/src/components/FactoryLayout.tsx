@@ -67,7 +67,7 @@ export default function FactoryLayout({ children }: { children: React.ReactNode 
       <div className="flex h-screen bg-gray-100 font-sans text-black">
         {user && <Sidebar userRole={user.role} />}
         
-        <div className="flex-1 flex flex-col overflow-hidden bg-[#F3F6F4]">
+        <div className="flex-1 flex flex-col overflow-hidden bg-page-soft">
           {user && (
             <Navbar
               title={title}

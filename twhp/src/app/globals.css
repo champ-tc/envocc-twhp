@@ -8,6 +8,15 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: #2e8b57;
+  --color-brand-hover: #257a4a;
+  --color-brand-dark: #246e45;
+  --color-brand-strong: #277549;
+  --color-brand-deep: #236d44;
+  --color-brand-soft: #e9f7ef;
+  --color-brand-soft-hover: #d1ebdc;
+  --color-brand-border: #bfe6d1;
+  --color-page-soft: #f3f6f4;
   /* 1. กำหนดให้ font-sans ของ Tailwind ใช้ตัวแปร Noto Sans Thai */
   --font-sans: var(--font-noto-sans-thai), sans-serif; 
   --font-mono: var(--font-geist-mono);
@@ -25,4 +34,139 @@ body {
   color: var(--foreground);
   /* 2. จุดสำคัญ: ต้องแก้ตรงนี้ให้เรียกใช้ตัวแปร font-sans หรือ font-noto-sans-thai โดยตรง */
   font-family: var(--font-noto-sans-thai), sans-serif;
+}
+
+.login-overlay {
+  background:
+    radial-gradient(circle at 25% 20%, rgba(46, 139, 87, 0.28), transparent 34%),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.78) 0%, rgba(15, 23, 42, 0.32) 48%, rgba(15, 23, 42, 0.66) 100%);
+}
+
+.login-content-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .login-content-grid {
+    grid-template-columns: minmax(0, 1fr) 460px;
+  }
+}
+
+.max-w-login {
+  max-width: 460px;
+}
+
+.rounded-login-card {
+  border-radius: 28px;
+}
+
+.max-h-modal {
+  max-height: 90vh;
+}
+
+.h-modal {
+  height: 90vh;
+}
+
+.min-h-comment {
+  min-height: 80px;
+}
+
+.min-w-question-title {
+  min-width: 300px;
+}
+
+.w-self-score {
+  width: 250px;
+}
+
+.min-w-summary-title {
+  min-width: 260px;
+}
+
+.min-w-summary-small {
+  min-width: 100px;
+}
+
+.min-w-summary-medium {
+  min-width: 110px;
+}
+
+.min-w-summary-result {
+  min-width: 170px;
+}
+
+.min-w-label {
+  min-width: 100px;
+}
+
+.min-w-table-sm {
+  min-width: 600px;
+}
+
+.min-w-table-md {
+  min-width: 700px;
+}
+
+.min-w-table-lg {
+  min-width: 1000px;
+}
+
+.min-w-table-xl {
+  min-width: 1050px;
+}
+
+.admin-search-field {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .admin-search-field {
+    width: 420px;
+  }
+}
+
+.text-xxs {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+}
+
+.text-xxxs {
+  font-size: 0.5rem;
+  line-height: 0.75rem;
+}
+
+.z-overlay {
+  z-index: 100;
+}
+
+.z-file-preview {
+  z-index: 9999;
+}
+
+.rounded-bottom-half {
+  border-bottom-left-radius: 50%;
+  border-bottom-right-radius: 50%;
+}
+
+.shadow-progress {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.shadow-sticky-footer {
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.progress-stripes {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
 }

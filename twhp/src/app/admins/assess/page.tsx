@@ -386,7 +386,7 @@ export default function AdminAssessPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="ค้นหา: ชื่อสถานประกอบการ / จังหวัด / ที่อยู่"
-          className="w-full md:w-[420px] rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-[#2E8B57]/30"
+          className="w-full admin-search-field rounded-2xl border border-gray-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-brand/30"
         />
         <button
           onClick={() => window.location.reload()}
@@ -398,7 +398,7 @@ export default function AdminAssessPage() {
       </div>
 
       <div className="mt-5 overflow-x-auto rounded-2xl border border-gray-200">
-        <table className="min-w-[1050px] w-full bg-white">
+        <table className="min-w-table-xl w-full bg-white">
           <thead className="bg-gray-50">
             <tr>
               {["ชื่อสถานประกอบการ", "ที่อยู่", "จังหวัด", "สถานะสมัคร", "จัดการ"].map((h) => (
@@ -447,7 +447,7 @@ export default function AdminAssessPage() {
                   <td className="px-4 py-3">
                     <button
                       onClick={() => { setSelected(f); setOpen(true); }}
-                      className="rounded-xl bg-[#2E8B57] px-4 py-2 text-white text-sm font-semibold hover:bg-[#277549]"
+                      className="rounded-xl bg-brand px-4 py-2 text-white text-sm font-semibold hover:bg-brand-strong"
                     >
                       ดูรายละเอียด
                     </button>
@@ -492,7 +492,7 @@ export default function AdminAssessPage() {
                     </div>
                   </div>
                   <div className="mt-4 overflow-x-auto">
-                    <table className="min-w-[600px] w-full text-sm">
+                    <table className="min-w-table-sm w-full text-sm">
                       <thead className="bg-gray-50">
                         <tr>{["ประเทศ", "ชาย", "หญิง", "รวม"].map(h => <th key={h} className="text-left px-4 py-2">{h}</th>)}</tr>
                       </thead>
@@ -528,7 +528,7 @@ export default function AdminAssessPage() {
                             <button
                               onClick={() => setPreviewFileName(fileUrl)}
                               type="button"
-                              className="text-[10px] text-[#2E8B57] px-2 hover:underline text-left"
+                              className="text-xxs text-brand px-2 hover:underline text-left"
                             >
                               ดูไฟล์แนบ
                             </button>
@@ -619,14 +619,14 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 drop-shadow-2xl">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center p-4 sm:p-6 drop-shadow-2xl">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="bg-white w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
+      <div className="bg-white w-full max-w-5xl h-modal rounded-3xl shadow-2xl relative z-10 overflow-hidden flex flex-col border border-gray-100">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 text-[#2E8B57] rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-green-100 text-brand rounded-xl flex items-center justify-center">
               <FileIcon size={20} />
             </div>
             <div>
@@ -637,7 +637,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownload}
-              className="p-2.5 text-gray-500 hover:text-[#2E8B57] hover:bg-green-50 rounded-xl transition-colors"
+              className="p-2.5 text-gray-500 hover:text-brand hover:bg-green-50 rounded-xl transition-colors"
               title="ดาวน์โหลดไฟล์"
             >
               <Download size={20} />
@@ -655,7 +655,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
         <div className="flex-1 bg-gray-100 relative min-h-0">
           {isLoading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white z-20">
-              <Loader2 className="animate-spin text-[#2E8B57]" size={32} />
+              <Loader2 className="animate-spin text-brand" size={32} />
               <p className="text-sm font-medium text-gray-600">กำลังโหลดเอกสาร...</p>
             </div>
           )}
@@ -668,7 +668,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
               <p className="text-sm font-medium text-gray-700">{error}</p>
               <button
                 onClick={onClose}
-                className="px-6 py-2 bg-[#2E8B57] text-white rounded-xl text-sm font-semibold hover:bg-[#257a4a] transition-colors"
+                className="px-6 py-2 bg-brand text-white rounded-xl text-sm font-semibold hover:bg-brand-hover transition-colors"
               >
                 ปิด
               </button>
@@ -692,7 +692,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
 // ===== Mini Components =====
 function StatPill({ title, value, tone }: { title: string; value: number; tone?: "green" }) {
   return (
-    <div className={`rounded-2xl border px-4 py-2 min-w-[100px] ${tone === "green" ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}>
+    <div className={`rounded-2xl border px-4 py-2 min-w-label ${tone === "green" ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"}`}>
       <div className="text-xs text-gray-600">{title}</div>
       <div className={`text-lg font-bold ${tone === "green" ? "text-green-800" : "text-black"}`}>{value}</div>
     </div>
@@ -702,7 +702,7 @@ function StatPill({ title, value, tone }: { title: string; value: number; tone?:
 function ModalShell({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl bg-[#F3F6F4] p-6 shadow-2xl">
+      <div className="relative w-full max-w-4xl max-h-modal overflow-auto rounded-3xl bg-page-soft p-6 shadow-2xl">
         <button onClick={onClose} className="absolute right-6 top-6 h-10 w-10 rounded-full bg-white text-gray-500 shadow hover:bg-gray-50 flex items-center justify-center">✕</button>
         <div className="mb-6 text-xl font-bold text-black">{title}</div>
         {children}
@@ -712,13 +712,13 @@ function ModalShell({ title, children, onClose }: { title: string; children: Rea
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div className="text-lg font-bold text-[#2E8B57]">{children}</div>;
+  return <div className="text-lg font-bold text-brand">{children}</div>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-2">
-      <span className="text-gray-600 font-medium min-w-[100px]">{label}:</span>
+      <span className="text-gray-600 font-medium min-w-label">{label}:</span>
       <span className="text-black">{value || "-"}</span>
     </div>
   );
@@ -726,6 +726,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function MiniPill({ title, value, emphasis }: { title: string; value: number; emphasis?: boolean }) {
   return (
-    <div className={`rounded-full px-3 py-1 text-xs font-semibold ${emphasis ? "bg-[#2E8B57] text-white" : "bg-gray-100 text-gray-700"}`}>{title}: {value}</div>
+    <div className={`rounded-full px-3 py-1 text-xs font-semibold ${emphasis ? "bg-brand text-white" : "bg-gray-100 text-gray-700"}`}>{title}: {value}</div>
   );
 }

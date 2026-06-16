@@ -83,7 +83,7 @@ export default function SearchableSelect({
         className={`${inputBase} ${
           disabled ? "bg-gray-50 cursor-not-allowed opacity-60 border-gray-200" : "hover:border-gray-300 border-gray-200"
         } ${error ? "border-red-600" : ""} ${
-          isOpen ? "ring-2 ring-[#2E8B57] border-transparent" : ""
+          isOpen ? "ring-2 ring-brand border-transparent" : ""
         }`}
         onClick={handleToggle}
         disabled={disabled}
@@ -138,7 +138,7 @@ export default function SearchableSelect({
                   key={option.id}
                   type="button"
                   className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors
-                    ${value.toString() === option.id.toString() ? "bg-green-50 text-[#2E8B57] font-semibold" : "text-gray-700"}
+                    ${value.toString() === option.id.toString() ? "bg-green-50 text-brand font-semibold" : "text-gray-700"}
                   `}
                   onClick={() => handleSelect(option)}
                 >

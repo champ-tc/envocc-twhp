@@ -301,8 +301,8 @@ export default function QuestionPageClient({ }: QuestionPageClientProps) {
             </div>
 
             {showInstructions && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="fixed inset-0 z-overlay flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-modal flex flex-col overflow-hidden">
                         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-slate-50">
                             <h3 className="text-xl font-bold text-slate-800">คำชี้แจง</h3>
                             <button onClick={() => setShowInstructions(false)} className="text-gray-400 hover:text-gray-600">
