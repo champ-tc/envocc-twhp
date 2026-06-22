@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAdminAuth } from "@/components/AdminLayout";
+import { useRouter } from "next/navigation";
 import { File as FileIcon, Download, Loader2, X } from "lucide-react";
 
 // ===== Factory =====
@@ -24,6 +25,23 @@ type Factory = {
 // ===== List of enrolled factories (from /admins/factories?validated=true&enrolled=true) =====
 type EnrolledFactoryRow = {
   account_id: number;
+  [k: string]: unknown;
+};
+
+type EvaluatorScoreRow = {
+  factoryId: number;
+  factoryNameTh?: string;
+  coverId: string;
+  coverStatus?: string;
+  grade?: string | null;
+  scoring?: {
+    total?: {
+      percentage?: number;
+      scoredCount?: number;
+      maxScore?: number;
+      achievedScore?: number;
+    };
+  };
   [k: string]: unknown;
 };
 
@@ -163,8 +181,57 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
+function getStringOrNumber(v: unknown): string {
+  if (typeof v === "string" && v.trim()) return v.trim();
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return "";
+}
+
 function getFromFlat(d: EnrollDetail, key: string): unknown {
   return key in d ? (d as Record<string, unknown>)[key] : undefined;
+}
+
+function toEvaluatorScoreRows(json: unknown): EvaluatorScoreRow[] {
+  if (!Array.isArray(json)) return [];
+
+  return json.flatMap((item) => {
+    if (!isRecord(item)) return [];
+
+    const factoryId = typeof item.factoryId === "number" ? item.factoryId : null;
+    const coverId = getStringOrNumber(item.coverId);
+    if (factoryId === null || !coverId) return [];
+    const scoring = isRecord(item.scoring) ? item.scoring : undefined;
+    const total = scoring && isRecord(scoring.total) ? scoring.total : undefined;
+
+    return [{
+      ...item,
+      factoryId,
+      coverId,
+      factoryNameTh: typeof item.factoryNameTh === "string" ? item.factoryNameTh : undefined,
+      coverStatus: typeof item.coverStatus === "string" ? item.coverStatus : undefined,
+      grade: typeof item.grade === "string" || item.grade === null ? item.grade : undefined,
+      scoring: total
+        ? {
+          total: {
+            percentage: typeof total.percentage === "number" ? total.percentage : undefined,
+            scoredCount: typeof total.scoredCount === "number" ? total.scoredCount : undefined,
+            maxScore: typeof total.maxScore === "number" ? total.maxScore : undefined,
+            achievedScore: typeof total.achievedScore === "number" ? total.achievedScore : undefined,
+          },
+        }
+        : undefined,
+    }];
+  });
+}
+
+function isEvaluatedStatus(status?: string) {
+  return status === "in_review" || status === "finished";
+}
+
+function coverStatusLabel(status?: string) {
+  if (status === "finished") return "ประเมินเสร็จสิ้น";
+  if (status === "in_review") return "ประเมินแล้ว";
+  return status || "-";
 }
 
 function employeeKey(code: EmployeeKeys, sex: Sex): EmployeeField {
@@ -225,12 +292,14 @@ function toEnrollDetail(json: unknown): EnrollDetail | null {
 
 export default function AdminAssessPage() {
   const { user, isLoading: loadingAuth } = useAdminAuth();
+  const router = useRouter();
 
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState("");
 
   const [factories, setFactories] = useState<Factory[]>([]);
   const [enrolledIds, setEnrolledIds] = useState<Set<number>>(new Set());
+  const [assessedRows, setAssessedRows] = useState<EvaluatorScoreRow[]>([]);
   const [q, setQ] = useState("");
 
   const [open, setOpen] = useState(false);
@@ -279,9 +348,21 @@ export default function AdminAssessPage() {
           }
         }
 
+        const sRes = await fetch("/api/admins/score", {
+          credentials: "include",
+          cache: "no-store",
+          signal: ac.signal,
+        });
+        const sRaw = await sRes.text();
+        const sData = parseJsonSafe<unknown>(sRaw);
+        const assessedList = sRes.ok
+          ? toEvaluatorScoreRows(sData).filter((row) => isEvaluatedStatus(row.coverStatus))
+          : [];
+
         if (alive) {
           setFactories(fData);
           setEnrolledIds(enrolledSet);
+          setAssessedRows(assessedList);
         }
       } catch (e) {
         if (isAbortError(e)) return;
@@ -299,9 +380,11 @@ export default function AdminAssessPage() {
 
   const rows = useMemo(() => {
     const kw = q.trim().toLowerCase();
+    const scoreByFactoryId = new Map(assessedRows.map((row) => [row.factoryId, row]));
     const list = factories.map((f) => ({
       f,
       enrolled: enrolledIds.has(f.account_id),
+      score: scoreByFactoryId.get(f.account_id) ?? null,
     }));
     if (!kw) return list;
     return list.filter(({ f }) => {
@@ -310,13 +393,16 @@ export default function AdminAssessPage() {
       const addr = thAddress(f).toLowerCase();
       return name.includes(kw) || pv.includes(kw) || addr.includes(kw);
     });
-  }, [factories, enrolledIds, q]);
+  }, [factories, enrolledIds, assessedRows, q]);
 
   const stats = useMemo(() => {
     const total = rows.length;
     const enrolled = rows.filter((x) => x.enrolled).length;
-    return { total, enrolled, notEnrolled: total - enrolled };
+    const assessed = rows.filter((x) => x.score).length;
+    return { total, enrolled, assessed, notEnrolled: total - enrolled };
   }, [rows]);
+
+  const assessedFactories = useMemo(() => rows.filter((x) => x.score), [rows]);
 
   // ===== fetch enroll detail =====
   useEffect(() => {
@@ -371,6 +457,7 @@ export default function AdminAssessPage() {
         <div className="flex flex-wrap gap-3">
           <StatPill title="ทั้งหมด" value={stats.total} />
           <StatPill title="สมัครแล้ว" value={stats.enrolled} tone="green" />
+          <StatPill title="ประเมินแล้ว" value={stats.assessed} tone="green" />
           <StatPill title="ยังไม่สมัคร" value={stats.notEnrolled} />
         </div>
       </div>
@@ -397,7 +484,9 @@ export default function AdminAssessPage() {
         </button>
       </div>
 
-      <div className="mt-5 overflow-x-auto rounded-2xl border border-gray-200">
+      <div className="mt-6 text-lg font-bold text-brand">สปก.สมัครโครงการ</div>
+
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-gray-200">
         <table className="min-w-table-xl w-full bg-white">
           <thead className="bg-gray-50">
             <tr>
@@ -454,6 +543,75 @@ export default function AdminAssessPage() {
                   </td>
                 </tr>
               ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-8 text-lg font-bold text-brand">สปก.ที่ประเมินแล้ว</div>
+
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-gray-200">
+        <table className="min-w-table-xl w-full bg-white">
+          <thead className="bg-gray-50">
+            <tr>
+              {["ชื่อสถานประกอบการ", "ที่อยู่", "จังหวัด", "คะแนนรวม", "สถานะประเมิน", "จัดการ"].map((h) => (
+                <th key={h} className="text-left px-4 py-3 text-sm font-semibold text-black">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loadingData ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">
+                  กำลังโหลดข้อมูล...
+                </td>
+              </tr>
+            ) : assessedFactories.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-600">
+                  ไม่พบสถานประกอบการที่ประเมินแล้ว
+                </td>
+              </tr>
+            ) : (
+              assessedFactories.map(({ f, score }) => {
+                const coverId = score?.coverId;
+                return (
+                  <tr key={f.account_id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-semibold text-black">
+                      {f.name_th || f.name_en || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-800">
+                      {thAddress(f) || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-800">
+                      {f.province_name_th || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-black">
+                      {typeof score?.scoring?.total?.percentage === "number"
+                        ? `${score.scoring.total.percentage}%`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${score?.coverStatus === "finished" ? "bg-green-50 border-green-200 text-green-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+                        {coverStatusLabel(score?.coverStatus)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => {
+                          if (coverId) router.push(`/admins/assess/${encodeURIComponent(coverId)}`);
+                        }}
+                        disabled={!coverId}
+                        className="rounded-xl bg-brand px-4 py-2 text-white text-sm font-semibold hover:bg-brand-strong disabled:cursor-not-allowed disabled:bg-gray-300"
+                      >
+                        ประเมิน
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -588,7 +746,7 @@ function FilePreviewModal({ fileName, onClose }: { fileName: string; onClose: ()
         }
         if (!cancelled) setPresignedUrl(url);
       })
-      .catch((err) => {
+      .catch(() => {
         if (!cancelled) setError("ไม่สามารถโหลดไฟล์ได้ กรุณาลองใหม่อีกครั้ง");
       })
       .finally(() => {
